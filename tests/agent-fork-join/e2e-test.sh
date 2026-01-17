@@ -343,9 +343,10 @@ setup_plugin() {
 		cp -r "${PLUGIN_ROOT}/hooks/lib"/* .claude/plugins/agent-fork-join/hooks/lib/
 	fi
 
-	# Configure Claude settings with full permissions for non-interactive testing
+	# Configure Claude settings with scoped permissions for non-interactive testing
+	# These permissions are tuned specifically for the E2E test operations
 	mkdir -p .claude
-	cat >.claude/settings.json <<'EOF'
+	cat >.claude/settings.json <<EOF
 {
   "plugins": {
     "enabled": ["agent-fork-join"]
@@ -357,25 +358,12 @@ setup_plugin() {
   },
   "permissions": {
     "allow": [
-      "Bash(git:*)",
-      "Bash(gh:*)",
-      "Bash(npm:*)",
-      "Bash(mkdir:*)",
-      "Bash(chmod:*)",
-      "Bash(ls:*)",
-      "Bash(cat:*)",
-      "Bash(echo:*)",
-      "Bash(touch:*)",
-      "Bash(rm:*)",
-      "Bash(cp:*)",
-      "Bash(mv:*)",
-      "Read",
-      "Write",
-      "Edit",
-      "MultiEdit",
-      "Glob",
-      "Grep",
-      "LS",
+      "Read(${TEST_DIR}/**)",
+      "Write(${TEST_DIR}/**)",
+      "Edit(${TEST_DIR}/**)",
+      "Glob(${TEST_DIR}/**)",
+      "Grep(${TEST_DIR}/**)",
+      "LS(${TEST_DIR}/**)",
       "Task"
     ],
     "deny": []
@@ -421,19 +409,51 @@ run_claude_test() {
 	local log_file="${LOG_DIR}/${REPO_NAME}-claude.log"
 	mkdir -p "${LOG_DIR}"
 
-	# Build Claude command with non-interactive flags
-	# --dangerously-skip-permissions: Skip all permission prompts
+	# Build scoped permission patterns for the test directory
+	# These allow only the specific operations needed for the test
+	local allowed_tools=(
+		# File operations scoped to test directory
+		"Read(${TEST_DIR}/**)"
+		"Write(${TEST_DIR}/**)"
+		"Edit(${TEST_DIR}/**)"
+		"Glob(${TEST_DIR}/**)"
+		"Grep(${TEST_DIR}/**)"
+		"LS(${TEST_DIR}/**)"
+		# Bash commands needed for git and validation
+		"Bash(git *)"
+		"Bash(gh pr *)"
+		"Bash(gh repo *)"
+		"Bash(npm test)"
+		"Bash(npm run *)"
+		"Bash(mkdir *)"
+		"Bash(ls *)"
+		"Bash(tree *)"
+		"Bash(find *)"
+		# Agent spawning
+		"Task"
+	)
+
+	# Join allowed tools with commas
+	local allowed_tools_str
+	allowed_tools_str=$(
+		IFS=,
+		echo "${allowed_tools[*]}"
+	)
+
+	# Build Claude command with scoped permissions
 	# --print: Output mode for scripting
-	# --allowedTools: Explicitly allow all required tools
+	# --allowedTools: Scoped tool permissions for specific operations
 	local claude_cmd=(
 		claude
-		--dangerously-skip-permissions
 		--print
-		--allowedTools "Bash,Read,Write,Edit,MultiEdit,Glob,Grep,LS,Task,TodoWrite"
+		--allowedTools "${allowed_tools_str}"
 		-p "${prompt}"
 	)
 
-	log_info "Executing: ${claude_cmd[*]}"
+	log_info "Executing Claude with scoped permissions..."
+	if [[ "${VERBOSE}" == "true" ]]; then
+		log_info "Allowed tools: ${allowed_tools_str}"
+	fi
 
 	# Run claude with timeout
 	local claude_exit=0

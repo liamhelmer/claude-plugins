@@ -22,13 +22,27 @@ This test suite validates the complete workflow of the agent-fork-join plugin by
 
 ## Non-Interactive Mode
 
-The test runs Claude in fully non-interactive mode using:
+The test runs Claude in fully non-interactive mode using scoped permissions:
 
-- `--dangerously-skip-permissions`: Skips all permission prompts
-- `--allowedTools`: Explicitly allows required tools (Bash, Read, Write, Edit, etc.)
-- `.claude/settings.json`: Pre-configures permissions for the test repository
+**File operations** (scoped to test directory):
 
-This allows the test to run without human intervention.
+- `Read(${TEST_DIR}/**)` - Read files in test repo only
+- `Write(${TEST_DIR}/**)` - Create files in test repo only
+- `Edit(${TEST_DIR}/**)` - Edit files in test repo only
+- `Glob`, `Grep`, `LS` - Search within test repo
+
+**Bash commands** (specific patterns):
+
+- `Bash(git *)` - Git operations
+- `Bash(gh pr *)`, `Bash(gh repo *)` - GitHub CLI
+- `Bash(npm test)`, `Bash(npm run *)` - Validation
+- `Bash(mkdir *)`, `Bash(ls *)` - Directory operations
+
+**Agent spawning**:
+
+- `Task` - For spawning concurrent agents
+
+This approach allows the test to run without user intervention while maintaining security by only allowing the specific operations needed for the test.
 
 ## Quick Start
 
