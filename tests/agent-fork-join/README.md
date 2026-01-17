@@ -20,6 +20,16 @@ This test suite validates the complete workflow of the agent-fork-join plugin by
 - **jq**: For JSON parsing
 - **git**: For repository operations
 
+## Non-Interactive Mode
+
+The test runs Claude in fully non-interactive mode using:
+
+- `--dangerously-skip-permissions`: Skips all permission prompts
+- `--allowedTools`: Explicitly allows required tools (Bash, Read, Write, Edit, etc.)
+- `.claude/settings.json`: Pre-configures permissions for the test repository
+
+This allows the test to run without human intervention.
+
 ## Quick Start
 
 ```bash

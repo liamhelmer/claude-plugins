@@ -343,7 +343,7 @@ setup_plugin() {
 		cp -r "${PLUGIN_ROOT}/hooks/lib"/* .claude/plugins/agent-fork-join/hooks/lib/
 	fi
 
-	# Configure hooks in .claude/settings.json
+	# Configure Claude settings with full permissions for non-interactive testing
 	mkdir -p .claude
 	cat >.claude/settings.json <<'EOF'
 {
@@ -354,6 +354,31 @@ setup_plugin() {
     "UserPromptSubmit": [".claude/plugins/agent-fork-join/hooks/on-prompt-submit.sh"],
     "AgentSpawn": [".claude/plugins/agent-fork-join/hooks/on-agent-spawn.sh"],
     "AgentComplete": [".claude/plugins/agent-fork-join/hooks/on-agent-complete.sh"]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(git:*)",
+      "Bash(gh:*)",
+      "Bash(npm:*)",
+      "Bash(mkdir:*)",
+      "Bash(chmod:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(echo:*)",
+      "Bash(touch:*)",
+      "Bash(rm:*)",
+      "Bash(cp:*)",
+      "Bash(mv:*)",
+      "Read",
+      "Write",
+      "Edit",
+      "MultiEdit",
+      "Glob",
+      "Grep",
+      "LS",
+      "Task"
+    ],
+    "deny": []
   }
 }
 EOF
@@ -396,9 +421,23 @@ run_claude_test() {
 	local log_file="${LOG_DIR}/${REPO_NAME}-claude.log"
 	mkdir -p "${LOG_DIR}"
 
+	# Build Claude command with non-interactive flags
+	# --dangerously-skip-permissions: Skip all permission prompts
+	# --print: Output mode for scripting
+	# --allowedTools: Explicitly allow all required tools
+	local claude_cmd=(
+		claude
+		--dangerously-skip-permissions
+		--print
+		--allowedTools "Bash,Read,Write,Edit,MultiEdit,Glob,Grep,LS,Task,TodoWrite"
+		-p "${prompt}"
+	)
+
+	log_info "Executing: ${claude_cmd[*]}"
+
 	# Run claude with timeout
 	local claude_exit=0
-	timeout "${TIMEOUT}" claude --print "${prompt}" >"${log_file}" 2>&1 || claude_exit=$?
+	timeout "${TIMEOUT}" "${claude_cmd[@]}" >"${log_file}" 2>&1 || claude_exit=$?
 
 	if [[ $claude_exit -eq 124 ]]; then
 		log_error "Claude timed out after ${TIMEOUT} seconds"
