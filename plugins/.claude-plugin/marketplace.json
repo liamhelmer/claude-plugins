@@ -11,7 +11,7 @@
     {
       "name": "agent-fork-join",
       "description": "Multi-agent git workflow orchestrator with isolated worktrees, FIFO merge queue, and automated PR lifecycle management.",
-      "version": "1.0.0",
+      "version": "0.2.0",
       "author": {
         "name": "liamhelmer",
         "email": "liamhelmer@example.com"

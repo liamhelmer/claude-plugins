@@ -287,7 +287,7 @@ This project will be built by multiple concurrent agents, each creating a separa
 The agent-fork-join plugin is configured with:
 - Max concurrent agents: 8
 - Merge strategy: rebase
-- Feature branch prefix: feature/
+- Branch naming: Angular commit types (feat/, fix/, refactor/, etc.)
 - Agent branch prefix: agent/
 
 ## Development Rules
@@ -446,10 +446,11 @@ Call all 5 Task tools in parallel in a single message. Each task prompt should t
 EOF
 }
 
-# Check if feature branch exists on remote
+# Check if feature branch exists on remote (Angular commit types: feat/, fix/, refactor/, etc.)
+# Valid Angular types: build, ci, docs, feat, fix, perf, refactor, test
 check_remote_branch() {
 	local branch_pattern="$1"
-	gh api "repos/${FULL_REPO}/branches" 2>/dev/null | jq -r '.[].name' | grep -q "^feature/" 2>/dev/null
+	gh api "repos/${FULL_REPO}/branches" 2>/dev/null | jq -r '.[].name' | grep -qE "^(build|ci|docs|feat|fix|perf|refactor|test)/" 2>/dev/null
 }
 
 # Monitor for branch creation in background
@@ -674,7 +675,8 @@ verify_results() {
 	while IFS= read -r branch; do
 		# Strip leading asterisk, spaces, and 'remotes/origin/' prefix
 		branch=$(echo "${branch}" | sed 's/^[* ]*//' | sed 's/^remotes\/origin\///')
-		if [[ "${branch}" =~ ^feature/ ]]; then
+		# Accept Angular commit type prefixes: build, ci, docs, feat, fix, perf, refactor, test
+		if [[ "${branch}" =~ ^(build|ci|docs|feat|fix|perf|refactor|test)/ ]]; then
 			feature_branch="${branch}"
 			break
 		fi
@@ -684,7 +686,8 @@ verify_results() {
 		log_warn "No feature branch found locally, checking remote..."
 		branches=$(git ls-remote --heads origin 2>/dev/null || echo "")
 		while IFS= read -r line; do
-			if [[ "${line}" =~ refs/heads/(feature/.*) ]]; then
+			# Accept Angular commit type prefixes
+			if [[ "${line}" =~ refs/heads/((build|ci|docs|feat|fix|perf|refactor|test)/.*) ]]; then
 				feature_branch="${BASH_REMATCH[1]}"
 				break
 			fi

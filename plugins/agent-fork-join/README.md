@@ -81,6 +81,66 @@ Add to your project's `.claude/settings.json`:
 }
 ```
 
+## Angular Commit Conventions
+
+This plugin follows the [Angular Commit Message Guidelines](https://github.com/angular/angular/blob/main/contributing-docs/commit-message-guidelines.md) for consistent branch naming and commit messages.
+
+### Branch Naming
+
+All branches are automatically named with a type prefix:
+
+| Type        | Description                                                   |
+| ----------- | ------------------------------------------------------------- |
+| `build/`    | Changes that affect the build system or external dependencies |
+| `ci/`       | Changes to CI configuration files and scripts                 |
+| `docs/`     | Documentation only changes                                    |
+| `feat/`     | A new feature                                                 |
+| `fix/`      | A bug fix                                                     |
+| `perf/`     | A code change that improves performance                       |
+| `refactor/` | A code change that neither fixes a bug nor adds a feature     |
+| `test/`     | Adding missing tests or correcting existing tests             |
+
+**Example branches:**
+
+- `feat/add-user-authentication`
+- `fix/resolve-null-pointer`
+- `refactor/simplify-api-handlers`
+
+### AI-Powered Naming
+
+The plugin uses Claude AI (Haiku model) to intelligently generate branch names and commit messages:
+
+1. **Branch names**: Analyzes the user's prompt to determine the appropriate type and generate a descriptive slug
+2. **Commit messages**: Generates Angular-style commit messages with type, optional scope, and body explaining the "why"
+
+If Claude CLI is unavailable, the plugin falls back to heuristic generation based on keyword analysis.
+
+### User-Specified Branches
+
+Users can override the automatic branch naming by specifying a branch in their prompt:
+
+```
+"Implement user auth on branch: my-auth-feature"
+"Use branch feat/custom-name for this work"
+```
+
+If the user-specified branch doesn't include a valid type prefix, one will be added automatically.
+
+### Commit Message Format
+
+```
+<type>(<scope>): <short summary>
+
+<body>
+```
+
+- **type**: One of the valid Angular types (required)
+- **scope**: Area of code affected (optional)
+- **summary**: Imperative mood, lowercase, no period, max 72 chars
+- **body**: Explains WHY the change was made
+
+See [COMMIT_GUIDELINES.md](docs/COMMIT_GUIDELINES.md) for complete formatting rules and examples.
+
 ## Configuration
 
 Configuration via environment variables or `plugin.json`:
@@ -124,6 +184,18 @@ Triggered when an agent finishes:
 2. Requests commit message from agent
 3. Creates agent branch and commits changes
 4. Enqueues branch for merge via daemon
+
+### Stop (`on-session-complete.sh`)
+
+Triggered when a Claude Code session ends:
+
+1. Checks if on a feature branch (skips if on main/master)
+2. Stages and commits any uncommitted changes
+3. Uses Claude AI to generate Angular-style commit message
+4. Pushes the feature branch to origin
+5. Creates a pull request if one doesn't exist
+
+The commit message and PR title follow Angular conventions, with the type extracted from the branch name prefix.
 
 ## Merge Daemon
 
@@ -178,7 +250,8 @@ plugins/agent-fork-join/
 ├── README.md                # This file
 ├── SKILL.md                 # Claude skill definition
 ├── docs/
-│   └── ARCHITECTURE.md      # Detailed architecture docs
+│   ├── ARCHITECTURE.md      # Detailed architecture docs
+│   └── COMMIT_GUIDELINES.md # Angular commit message guidelines
 ├── daemon/                  # Rust merge daemon
 │   ├── Cargo.toml
 │   └── src/
@@ -190,9 +263,10 @@ plugins/agent-fork-join/
 │       ├── ipc.rs           # Unix socket server
 │       └── error.rs         # Error types
 ├── hooks/
-│   ├── on-prompt-submit.sh  # UserPromptSubmit hook
-│   ├── on-agent-spawn.sh    # AgentSpawn hook
-│   ├── on-agent-complete.sh # AgentComplete hook
+│   ├── on-prompt-submit.sh     # UserPromptSubmit hook
+│   ├── on-session-complete.sh  # Stop hook (commits & PR)
+│   ├── on-agent-spawn.sh       # AgentSpawn hook
+│   ├── on-agent-complete.sh    # AgentComplete hook
 │   └── lib/
 │       ├── common.sh        # Shared utilities
 │       ├── git-utils.sh     # Git helpers
@@ -226,7 +300,7 @@ User: "Build a REST API with authentication, user management, and database model
        Use 3 agents working in parallel."
 
 Plugin:
-1. Creates feature/rest-api-implementation branch
+1. Creates feat/rest-api-implementation branch (AI-generated Angular type)
 2. Starts merge daemon
 3. Spawns 3 agents with isolated worktrees:
    - AuthAgent → /src/auth/
