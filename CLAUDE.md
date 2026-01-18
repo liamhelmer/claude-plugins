@@ -26,10 +26,34 @@ cd plugins/agent-fork-join/daemon && cargo build --release
 # Run E2E test with cleanup
 ./tests/agent-fork-join/e2e-test.sh --clean
 
+# Run E2E test with debug mode (keeps .fork-join files)
+./tests/agent-fork-join/e2e-test.sh --debug
+
 # List/cleanup test repos
 ./tests/agent-fork-join/cleanup.sh --list
 ./tests/agent-fork-join/cleanup.sh --all
 ```
+
+## 🚨 agent-fork-join Test Requirements (CRITICAL)
+
+**The E2E test for agent-fork-join MUST meet these requirements:**
+
+| Requirement        | Minimum | Description                                                        |
+| ------------------ | ------- | ------------------------------------------------------------------ |
+| **Commits**        | **5**   | At least 5 commits (1 initial + 1 per file via PostToolUse hook)   |
+| **Feature Branch** | 1       | Angular-style branch (feat/, fix/, etc.) created by plugin         |
+| **Pull Request**   | 1       | PR created automatically by plugin with full prompt in description |
+| **Directories**    | 5       | src/auth/, src/api/, src/db/, src/utils/, src/config/              |
+
+**Key Rules:**
+
+1. The test prompt MUST NOT mention git operations (commits, branches, PRs)
+2. The plugin handles ALL git operations automatically via hooks:
+   - `UserPromptSubmit` → Creates feature branch
+   - `PostToolUse` → Auto-commits after each file write
+   - `Stop` → Creates PR with complete original prompt
+3. PR description MUST include the complete original prompt (not truncated)
+4. By default, .gitignore should exclude `.fork-join/` files (use `--debug` to keep them)
 
 ---
 

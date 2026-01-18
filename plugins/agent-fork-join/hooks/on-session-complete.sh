@@ -264,7 +264,7 @@ main() {
 		local session_id
 		session_id="$(cat "${STATE_DIR}/current_session")"
 		if [[ -f "${STATE_DIR}/${session_id}.json" ]]; then
-			session_prompt="$(jq -r '.prompt // empty' "${STATE_DIR}/${session_id}.json" 2>/dev/null | head -5)"
+			session_prompt="$(jq -r '.prompt // empty' "${STATE_DIR}/${session_id}.json" 2>/dev/null)"
 		fi
 	fi
 
@@ -356,9 +356,15 @@ ${branch_desc}
 	if [[ -n "$session_prompt" ]]; then
 		pr_body="${pr_body}
 ## Original Task
+
+<details>
+<summary>Click to expand original prompt</summary>
+
 \`\`\`
-${session_prompt:0:500}
+${session_prompt}
 \`\`\`
+
+</details>
 "
 	fi
 
