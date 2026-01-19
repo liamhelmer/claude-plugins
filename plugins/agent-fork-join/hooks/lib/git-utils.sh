@@ -6,6 +6,64 @@ git_is_repo() {
 	git rev-parse --is-inside-work-tree >/dev/null 2>&1
 }
 
+# Check if the repository has a GitHub remote
+git_is_github_repo() {
+	local remote_url
+	remote_url=$(git remote get-url origin 2>/dev/null || echo "")
+
+	if [[ -z "$remote_url" ]]; then
+		return 1
+	fi
+
+	# Check if remote URL contains github.com
+	if [[ "$remote_url" == *"github.com"* ]]; then
+		return 0
+	fi
+
+	return 1
+}
+
+# Valid Angular commit type prefixes for plugin-created branches
+PLUGIN_BRANCH_PREFIXES=("build" "ci" "docs" "feat" "fix" "perf" "refactor" "test")
+
+# Check if current branch was created by the plugin (follows Angular convention)
+git_is_plugin_branch() {
+	local branch="${1:-$(git_current_branch)}"
+
+	# Check if branch matches pattern: type/description
+	for prefix in "${PLUGIN_BRANCH_PREFIXES[@]}"; do
+		if [[ "$branch" == "${prefix}/"* ]]; then
+			return 0
+		fi
+	done
+
+	return 1
+}
+
+# Check if the plugin should activate for current repo/branch state
+git_should_plugin_activate() {
+	# Must be a GitHub repository
+	if ! git_is_github_repo; then
+		return 1
+	fi
+
+	local current_branch
+	current_branch="$(git_current_branch)"
+
+	# Activate if on default branch (main/master)
+	if git_is_main_branch "$current_branch"; then
+		return 0
+	fi
+
+	# Activate if on a plugin-created branch (Angular convention)
+	if git_is_plugin_branch "$current_branch"; then
+		return 0
+	fi
+
+	# Don't activate for other branches (e.g., user's own feature branches)
+	return 1
+}
+
 # Get current branch name
 git_current_branch() {
 	git rev-parse --abbrev-ref HEAD 2>/dev/null
@@ -147,4 +205,28 @@ git_merge_base() {
 	local ref1="$1"
 	local ref2="$2"
 	git merge-base "$ref1" "$ref2" 2>/dev/null
+}
+
+# Get existing PR number for a branch (returns empty if no PR exists)
+git_get_pr_number() {
+	local branch="${1:-$(git_current_branch)}"
+	gh pr list --head "$branch" --json number --jq '.[0].number' 2>/dev/null || echo ""
+}
+
+# Get existing PR body for a branch
+git_get_pr_body() {
+	local pr_number="$1"
+	gh pr view "$pr_number" --json body --jq '.body' 2>/dev/null || echo ""
+}
+
+# Update PR body
+git_update_pr_body() {
+	local pr_number="$1"
+	local new_body="$2"
+	gh pr edit "$pr_number" --body "$new_body" 2>/dev/null
+}
+
+# Format timestamp for display
+format_timestamp() {
+	date -u +"%Y-%m-%d %H:%M:%S UTC"
 }
