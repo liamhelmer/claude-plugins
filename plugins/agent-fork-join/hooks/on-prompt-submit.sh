@@ -390,6 +390,154 @@ generate_branch_name() {
 	generate_heuristic_branch_name
 }
 
+# Use AI to analyze if PR description needs updating and what changes to make
+analyze_pr_for_updates() {
+	local current_body="$1"
+	local new_prompt="$2"
+
+	if ! command -v claude >/dev/null 2>&1; then
+		debug_log "Claude CLI not available for PR analysis"
+		return 1
+	fi
+
+	debug_log "Using Claude haiku to analyze PR description..."
+
+	# Truncate inputs for AI (prevent context overflow)
+	local sanitized_body
+	sanitized_body=$(echo "$current_body" | head -c 2000)
+	local sanitized_prompt
+	sanitized_prompt=$(echo "$new_prompt" | tr '\n' ' ' | head -c 800)
+
+	local ai_prompt="Analyze this PR description and determine if it needs updating based on the new prompt.
+
+CURRENT PR DESCRIPTION:
+${sanitized_body}
+
+NEW PROMPT FROM USER:
+${sanitized_prompt}
+
+INSTRUCTIONS:
+1. Compare the new prompt to what's already described in the PR
+2. If the new prompt adds NEW functionality not covered in the Summary/Changes sections, output suggested updates
+3. If the new prompt is just continuation of existing work, output 'NO_UPDATE_NEEDED'
+
+OUTPUT FORMAT:
+- If updates needed: Output ONLY the text to ADD to the 'Changes Made' section (bullet points starting with '- ')
+- If no updates needed: Output exactly 'NO_UPDATE_NEEDED'
+
+Be concise. Output nothing else."
+
+	export FORK_JOIN_HOOK_CONTEXT=1
+	local analysis=""
+	if command -v timeout >/dev/null 2>&1; then
+		analysis=$(echo "$ai_prompt" | timeout 15 claude --print --model haiku -p - 2>/dev/null) || true
+	elif command -v gtimeout >/dev/null 2>&1; then
+		analysis=$(echo "$ai_prompt" | gtimeout 15 claude --print --model haiku -p - 2>/dev/null) || true
+	else
+		local tmp_output
+		tmp_output=$(mktemp)
+		(echo "$ai_prompt" | claude --print --model haiku -p - >"$tmp_output" 2>/dev/null) &
+		local pid=$!
+		local waited=0
+		while kill -0 "$pid" 2>/dev/null && [[ $waited -lt 15 ]]; do
+			sleep 1
+			waited=$((waited + 1))
+		done
+		if kill -0 "$pid" 2>/dev/null; then
+			debug_log "AI analysis timed out"
+			kill "$pid" 2>/dev/null || true
+			analysis=""
+		else
+			analysis=$(cat "$tmp_output")
+		fi
+		rm -f "$tmp_output"
+	fi
+	unset FORK_JOIN_HOOK_CONTEXT
+
+	if [[ -n "$analysis" ]]; then
+		debug_log "AI analysis result: ${analysis:0:100}..."
+		echo "$analysis"
+		return 0
+	fi
+	return 1
+}
+
+# Append a new prompt to an existing PR description
+append_prompt_to_pr() {
+	local pr_number="$1"
+	local new_prompt="$2"
+
+	debug_log "Appending prompt to PR #${pr_number}"
+
+	# Get current PR body
+	local current_body
+	current_body="$(git_get_pr_body "$pr_number")"
+
+	if [[ -z "$current_body" ]]; then
+		debug_log "Could not retrieve PR body"
+		return 1
+	fi
+
+	# Generate timestamp for this prompt
+	local prompt_timestamp
+	prompt_timestamp=$(format_timestamp)
+
+	# Analyze if PR description needs content updates (not just appending prompt)
+	local ai_analysis=""
+	ai_analysis=$(analyze_pr_for_updates "$current_body" "$new_prompt") || true
+	debug_log "AI analysis: ${ai_analysis:0:100}..."
+
+	# Create the new prompt accordion section
+	local new_prompt_section="
+<details>
+<summary>📝 Prompt - ${prompt_timestamp}</summary>
+
+\`\`\`
+${new_prompt}
+\`\`\`
+
+</details>"
+
+	# Build the updated body
+	local updated_body="$current_body"
+
+	# If AI suggested updates to the description content, we could integrate them
+	# For now, we log it but primarily focus on appending the prompt
+	if [[ -n "$ai_analysis" && "$ai_analysis" != "NO_UPDATE_NEEDED" && "$ai_analysis" != *"NO_UPDATE"* ]]; then
+		debug_log "AI suggests description updates: ${ai_analysis:0:200}"
+		# Note: We could modify the PR body here to add new bullet points
+		# For safety, we just log it and append the prompt
+	fi
+
+	# Find where to append the new prompt section
+	# Strategy: Look for existing "## Prompt History" section or append at end
+	if [[ "$updated_body" == *"## Prompt History"* ]]; then
+		# Append the new prompt section after the existing prompt history
+		# Find the last </details> in the Prompt History section and append after it
+		updated_body="${updated_body}
+${new_prompt_section}"
+	else
+		# No prompt history section exists - create one
+		# Append it at the very end
+		updated_body="${updated_body}
+
+---
+
+## Prompt History
+${new_prompt_section}"
+	fi
+
+	# Update the PR
+	if git_update_pr_body "$pr_number" "$updated_body"; then
+		debug_log "Successfully updated PR #${pr_number} body"
+		log_info "Appended new prompt to PR #${pr_number}"
+		return 0
+	else
+		debug_log "Failed to update PR body"
+		return 1
+	fi
+}
+
 main() {
 	debug_log "main() called"
 	log_info "UserPromptSubmit hook triggered"
