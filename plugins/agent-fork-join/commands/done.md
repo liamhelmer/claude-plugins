@@ -70,6 +70,7 @@ git pull origin "$default_branch"
 ```
 
 If there are merge conflicts:
+
 1. First try to auto-resolve by accepting remote changes: `git checkout --theirs . && git add -A`
 2. If that fails, show the user the conflicting files and ask them to resolve manually
 
