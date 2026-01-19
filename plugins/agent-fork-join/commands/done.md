@@ -1,116 +1,114 @@
 ---
 name: "done"
-description: "Complete the current PR workflow by merging, switching to main, pulling changes, and running compact."
+description: "Complete the current PR workflow: merge PR, switch to main, pull changes, resolve conflicts, and run compact."
 ---
 
-# /done - Complete PR Workflow
+# /done Command
 
-This command finalizes your PR workflow by:
+Complete the current PR workflow by merging, switching to main, and cleaning up.
 
-1. **Merging the PR** (if it exists and isn't already merged)
-2. **Switching to main branch**
-3. **Pulling the latest changes**
-4. **Resolving any conflicts** (if possible)
-5. **Running /compact** to consolidate conversation history
+## When This Command Is Invoked
 
-## Usage
+Execute the following steps in order:
 
-```
-/done
-```
+### Step 1: Check Current State
 
-## Workflow Steps
-
-### Step 1: Check and Merge PR
-
-First, check if there's an open PR for the current branch:
+Run these commands to understand the current state:
 
 ```bash
 # Get current branch
 current_branch=$(git rev-parse --abbrev-ref HEAD)
+echo "Current branch: $current_branch"
 
-# Check if we're on a feature branch (Angular-style: feat/, fix/, etc.)
+# Get default branch
+default_branch=$(git remote show origin 2>/dev/null | grep 'HEAD branch' | cut -d: -f2 | tr -d ' ' || echo "main")
+echo "Default branch: $default_branch"
+```
+
+### Step 2: Merge PR (if applicable)
+
+If on a feature branch (feat/, fix/, etc.), check for and merge the PR:
+
+```bash
+# Check if current branch is a feature branch
 if [[ "$current_branch" =~ ^(build|ci|docs|feat|fix|perf|refactor|test)/ ]]; then
-    # Check for open PR
-    pr_number=$(gh pr list --head "$current_branch" --json number --jq '.[0].number' 2>/dev/null)
+    # Get PR number
+    pr_number=$(gh pr list --head "$current_branch" --json number --jq '.[0].number' 2>/dev/null || echo "")
 
     if [[ -n "$pr_number" ]]; then
-        # Check PR status
+        # Check PR state
         pr_state=$(gh pr view "$pr_number" --json state --jq '.state')
 
         if [[ "$pr_state" == "OPEN" ]]; then
             echo "Merging PR #$pr_number..."
             gh pr merge "$pr_number" --squash --delete-branch
-        elif [[ "$pr_state" == "MERGED" ]]; then
-            echo "PR #$pr_number is already merged."
+        else
+            echo "PR #$pr_number is already $pr_state"
         fi
+    else
+        echo "No PR found for this branch"
     fi
 fi
 ```
 
-### Step 2: Switch to Main Branch
+### Step 3: Switch to Main Branch
 
 ```bash
-# Get the default branch (main or master)
-default_branch=$(git remote show origin 2>/dev/null | grep 'HEAD branch' | cut -d: -f2 | tr -d ' ')
-if [[ -z "$default_branch" ]]; then
-    default_branch="main"
+# Stash any uncommitted changes
+if [[ -n "$(git status --porcelain)" ]]; then
+    git stash push -m "Auto-stash before /done"
 fi
 
+# Switch to default branch
 git checkout "$default_branch"
 ```
 
-### Step 3: Pull Latest Changes
+### Step 4: Pull Latest Changes
 
 ```bash
 git pull origin "$default_branch"
 ```
 
-### Step 4: Handle Conflicts (if any)
-
 If there are merge conflicts:
+1. First try to auto-resolve by accepting remote changes: `git checkout --theirs . && git add -A`
+2. If that fails, show the user the conflicting files and ask them to resolve manually
 
-1. Attempt automatic resolution where possible
-2. For remaining conflicts, show the user what files need attention
-3. Provide guidance on resolving them
+### Step 5: Clean Up Session State
 
-### Step 5: Run Compact
-
-Finally, run the compact command to consolidate conversation history:
-
-```
-/compact
+```bash
+# Remove session tracking files
+rm -f .fork-join/current_session
+rm -f .fork-join/tracked_files.txt
 ```
 
-## Notes
+### Step 6: Run Compact
 
-- This command assumes you're using the agent-fork-join plugin workflow
-- PR merge uses `--squash` by default to keep history clean
-- The feature branch is automatically deleted after merge
-- If the PR has merge conflicts, they must be resolved first
-
-## Examples
-
-### Typical workflow
-
-```
-User: Implement authentication feature
-[... Claude implements the feature ...]
-[... PR is created automatically ...]
-
-User: /done
-[Claude merges PR, switches to main, pulls, and compacts]
-```
-
-### When PR is already merged
-
-```
-User: /done
-"PR #42 is already merged. Switching to main and pulling changes..."
-```
+After all steps complete successfully, run the `/compact` command to consolidate conversation history.
 
 ## Error Handling
 
-- If no PR exists: Switches directly to main
-- If PR has conflicts: Reports conflicts and suggests resolution
-- If merge fails: Reports the error and suggests manual intervention
+- **PR has merge conflicts**: Tell the user they need to resolve conflicts on the PR first before running /done
+- **Cannot switch branches**: Check for uncommitted changes and stash them
+- **Pull fails with conflicts**: Try auto-resolution first, then ask user to resolve manually if needed
+
+## Output Format
+
+Report progress at each step:
+
+```
+=== Completing PR Workflow ===
+
+Checking for open PR on branch feat/my-feature...
+Found open PR #42, merging with squash...
+Successfully merged PR #42
+
+Switching to main branch...
+Switched to main
+
+Pulling latest changes...
+Already up to date.
+
+=== Workflow Complete ===
+
+Running /compact to consolidate conversation history...
+```
