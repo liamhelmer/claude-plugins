@@ -52,19 +52,49 @@ if [[ -z "$RAW_INPUT" ]] && [[ ! -t 0 ]]; then
 	RAW_INPUT="$(cat)"
 fi
 
+debug_log "Raw input received: '${RAW_INPUT:0:200}...'"
+
 # Extract the actual prompt from the JSON input
-# If jq is available, use it for proper parsing; otherwise use grep/sed
+# The input is JSON with a "prompt" field containing the user's actual prompt
+PROMPT=""
 if command -v jq >/dev/null 2>&1; then
+	# Try to extract the prompt field from JSON
 	PROMPT=$(echo "$RAW_INPUT" | jq -r '.prompt // empty' 2>/dev/null || echo "")
-else
-	# Fallback: extract prompt field using sed (less reliable but works for simple cases)
-	PROMPT=$(echo "$RAW_INPUT" | sed -n 's/.*"prompt"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+
+	# If jq returned empty or the raw input itself (parsing failed), try harder
+	if [[ -z "$PROMPT" ]]; then
+		debug_log "jq extraction returned empty, checking if input is valid JSON"
+		# Check if input is valid JSON at all
+		if echo "$RAW_INPUT" | jq -e . >/dev/null 2>&1; then
+			debug_log "Input is valid JSON but has no prompt field"
+			# It's valid JSON but no prompt field - this is an error condition
+			PROMPT=""
+		else
+			debug_log "Input is not JSON, treating as raw prompt"
+			# Not JSON, treat as raw prompt text
+			PROMPT="$RAW_INPUT"
+		fi
+	fi
 fi
 
-# If we couldn't extract the prompt, use the raw input (for backwards compatibility)
+# Fallback if jq not available: use grep/sed
+if [[ -z "$PROMPT" ]] && ! command -v jq >/dev/null 2>&1; then
+	debug_log "jq not available, using sed fallback"
+	# Try to extract prompt using sed - this handles escaped quotes
+	PROMPT=$(echo "$RAW_INPUT" | sed -n 's/.*"prompt"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
+	if [[ -z "$PROMPT" ]]; then
+		# If sed failed and input doesn't look like JSON, use as-is
+		if [[ "$RAW_INPUT" != "{"* ]]; then
+			PROMPT="$RAW_INPUT"
+		fi
+	fi
+fi
+
+# Final check - if we still have no prompt, we cannot proceed
 if [[ -z "$PROMPT" ]]; then
-	debug_log "Could not extract prompt from JSON, using raw input"
-	PROMPT="$RAW_INPUT"
+	debug_log "ERROR: Could not extract prompt from input"
+	echo "ERROR: No prompt found in hook input" >&2
+	exit 1
 fi
 
 debug_log "Extracted prompt: '${PROMPT:0:100}...'"
@@ -130,6 +160,39 @@ validate_branch_type() {
 	return 1
 }
 
+# Sanitize a string to be a valid git branch name
+# - Removes newlines, control characters
+# - Converts spaces and invalid chars to hyphens
+# - Converts to lowercase
+# - Removes consecutive hyphens
+# - Limits length
+sanitize_branch_name() {
+	local input="$1"
+	local max_length="${2:-50}"
+
+	# Convert to single line, lowercase, remove control chars
+	local sanitized
+	sanitized=$(echo "$input" | tr '\n\r\t' ' ' | tr '[:upper:]' '[:lower:]')
+
+	# Replace spaces and invalid git branch chars with hyphens
+	# Valid git branch chars: alphanumeric, /, -, _, .
+	sanitized=$(echo "$sanitized" | sed 's/[^a-z0-9/_.-]/-/g')
+
+	# Remove consecutive hyphens
+	sanitized=$(echo "$sanitized" | sed 's/--*/-/g')
+
+	# Remove leading/trailing hyphens and dots
+	sanitized=$(echo "$sanitized" | sed 's/^[-.]*//' | sed 's/[-.]*$//')
+
+	# Limit length
+	sanitized="${sanitized:0:$max_length}"
+
+	# Remove trailing hyphen after truncation
+	sanitized=$(echo "$sanitized" | sed 's/[-.]*$//')
+
+	echo "$sanitized"
+}
+
 # Use Claude AI to generate a branch name following Angular conventions
 generate_ai_branch_name() {
 	local prompt_text="$1"
@@ -143,44 +206,30 @@ generate_ai_branch_name() {
 
 	debug_log "Using Claude AI to generate branch name..."
 
+	# Sanitize the prompt for inclusion in AI request (first 500 chars, single line)
+	local sanitized_prompt
+	sanitized_prompt=$(echo "$prompt_text" | tr '\n\r' ' ' | head -c 500)
+
 	# Create a prompt for Claude to generate the branch name
 	local ai_prompt
-	ai_prompt="$(
-		cat <<'AIPROMPT'
-Analyze this task description and generate a git branch name following Angular commit conventions.
+	ai_prompt="Analyze this task and generate a git branch name.
 
-VALID TYPES (choose ONE):
-- feat: A new feature
-- fix: A bug fix
-- refactor: Code change that neither fixes a bug nor adds a feature
-- perf: Performance improvement
-- test: Adding or correcting tests
-- docs: Documentation only changes
-- build: Build system or dependency changes
-- ci: CI configuration changes
+VALID TYPES: feat, fix, refactor, perf, test, docs, build, ci
 
-RULES:
-1. Branch name format: <type>/<short-description>
-2. Use lowercase only
-3. Use hyphens between words (no spaces or underscores)
-4. Keep description under 30 characters
-5. Be specific but concise
+FORMAT: <type>/<short-description>
+- lowercase only
+- hyphens between words
+- max 30 chars in description
 
-TASK DESCRIPTION:
-AIPROMPT
-	)"
+TASK: ${sanitized_prompt}
 
-	# Append the actual prompt
-	ai_prompt="${ai_prompt}
-${prompt_text}
-
-OUTPUT ONLY THE BRANCH NAME, nothing else. Example: feat/add-user-auth"
+OUTPUT ONLY THE BRANCH NAME (e.g., feat/add-user-auth):"
 
 	# Call Claude CLI with minimal settings and 10s timeout
-	# Use --print to get output, -p for prompt, --model haiku for speed
 	# Set FORK_JOIN_HOOK_CONTEXT to prevent recursive hook calls
 	export FORK_JOIN_HOOK_CONTEXT=1
-	local raw_response
+	local raw_response=""
+
 	# Use timeout to prevent blocking (10 seconds max)
 	if command -v timeout >/dev/null 2>&1; then
 		raw_response=$(echo "$ai_prompt" | timeout 10 claude --print --model haiku -p - 2>/dev/null) || true
@@ -207,12 +256,25 @@ OUTPUT ONLY THE BRANCH NAME, nothing else. Example: feat/add-user-auth"
 		rm -f "$tmp_output"
 	fi
 	unset FORK_JOIN_HOOK_CONTEXT
+
 	debug_log "AI raw response: '${raw_response:0:100}...'"
 
-	ai_branch=$(echo "$raw_response" | tr -d '\n\r' | head -1)
+	# Clean the response: remove newlines, extract branch name pattern
+	# First, collapse to single line and trim whitespace
+	ai_branch=$(echo "$raw_response" | tr '\n\r\t' ' ' | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
 
-	# Clean up the response - extract just the branch name
-	ai_branch=$(echo "$ai_branch" | grep -oE '^(build|ci|docs|feat|fix|perf|refactor|test)/[a-z0-9-]+' | head -1)
+	# Extract just the branch name pattern (type/description)
+	ai_branch=$(echo "$ai_branch" | grep -oE '(build|ci|docs|feat|fix|perf|refactor|test)/[a-z0-9-]+' | head -1)
+
+	# Final sanitization
+	if [[ -n "$ai_branch" ]]; then
+		local branch_type branch_desc
+		branch_type=$(echo "$ai_branch" | cut -d'/' -f1)
+		branch_desc=$(echo "$ai_branch" | cut -d'/' -f2-)
+		branch_desc=$(sanitize_branch_name "$branch_desc" 30)
+		ai_branch="${branch_type}/${branch_desc}"
+	fi
+
 	debug_log "AI cleaned branch: '$ai_branch'"
 
 	if [[ -n "$ai_branch" ]] && validate_branch_type "$ai_branch"; then
@@ -256,9 +318,13 @@ generate_heuristic_branch_name() {
 	local commit_type
 	commit_type="$(determine_type_heuristic)"
 
+	# First, sanitize the prompt to a single line for processing
+	local single_line_prompt
+	single_line_prompt=$(echo "$PROMPT" | tr '\n\r\t' ' ' | head -c 200)
+
 	# Extract key words from prompt for description
 	local slug
-	slug=$(echo "$PROMPT" | head -1 | tr '[:upper:]' '[:lower:]' | tr -d '\n\r' | sed 's/[^a-z0-9 ]//g' | awk '{
+	slug=$(echo "$single_line_prompt" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9 ]/ /g' | awk '{
 		# Skip common words and the type we detected
 		skip["the"] = 1; skip["a"] = 1; skip["an"] = 1; skip["to"] = 1;
 		skip["and"] = 1; skip["or"] = 1; skip["for"] = 1; skip["in"] = 1;
@@ -267,9 +333,11 @@ generate_heuristic_branch_name() {
 		skip["please"] = 1; skip["can"] = 1; skip["you"] = 1; skip["i"] = 1;
 		skip["implement"] = 1; skip["add"] = 1; skip["create"] = 1;
 		skip["fix"] = 1; skip["update"] = 1; skip["modify"] = 1;
+		skip["task"] = 1; skip["using"] = 1; skip["use"] = 1;
+		skip["tool"] = 1; skip["must"] = 1; skip["each"] = 1;
 		words = ""
 		count = 0
-		for (i = 1; i <= NF && count < 3; i++) {
+		for (i = 1; i <= NF && count < 4; i++) {
 			if (!($i in skip) && length($i) > 2) {
 				if (words != "") words = words "-"
 				words = words $i
@@ -279,12 +347,12 @@ generate_heuristic_branch_name() {
 		print words
 	}')
 
-	if [[ -z "$slug" || "$slug" == "-" || "$slug" == "--" ]]; then
+	# Sanitize the slug
+	slug=$(sanitize_branch_name "$slug" 30)
+
+	if [[ -z "$slug" || "$slug" == "-" ]]; then
 		slug="task-$(date +%s | tail -c 6)"
 	fi
-
-	# Ensure slug isn't too long
-	slug="${slug:0:30}"
 
 	echo "${commit_type}/${slug}"
 }
@@ -322,11 +390,175 @@ generate_branch_name() {
 	generate_heuristic_branch_name
 }
 
+# Use AI to analyze if PR description needs updating and what changes to make
+analyze_pr_for_updates() {
+	local current_body="$1"
+	local new_prompt="$2"
+
+	if ! command -v claude >/dev/null 2>&1; then
+		debug_log "Claude CLI not available for PR analysis"
+		return 1
+	fi
+
+	debug_log "Using Claude haiku to analyze PR description..."
+
+	# Truncate inputs for AI (prevent context overflow)
+	local sanitized_body
+	sanitized_body=$(echo "$current_body" | head -c 2000)
+	local sanitized_prompt
+	sanitized_prompt=$(echo "$new_prompt" | tr '\n' ' ' | head -c 800)
+
+	local ai_prompt="Analyze this PR description and determine if it needs updating based on the new prompt.
+
+CURRENT PR DESCRIPTION:
+${sanitized_body}
+
+NEW PROMPT FROM USER:
+${sanitized_prompt}
+
+INSTRUCTIONS:
+1. Compare the new prompt to what's already described in the PR
+2. If the new prompt adds NEW functionality not covered in the Summary/Changes sections, output suggested updates
+3. If the new prompt is just continuation of existing work, output 'NO_UPDATE_NEEDED'
+
+OUTPUT FORMAT:
+- If updates needed: Output ONLY the text to ADD to the 'Changes Made' section (bullet points starting with '- ')
+- If no updates needed: Output exactly 'NO_UPDATE_NEEDED'
+
+Be concise. Output nothing else."
+
+	export FORK_JOIN_HOOK_CONTEXT=1
+	local analysis=""
+	if command -v timeout >/dev/null 2>&1; then
+		analysis=$(echo "$ai_prompt" | timeout 15 claude --print --model haiku -p - 2>/dev/null) || true
+	elif command -v gtimeout >/dev/null 2>&1; then
+		analysis=$(echo "$ai_prompt" | gtimeout 15 claude --print --model haiku -p - 2>/dev/null) || true
+	else
+		local tmp_output
+		tmp_output=$(mktemp)
+		(echo "$ai_prompt" | claude --print --model haiku -p - >"$tmp_output" 2>/dev/null) &
+		local pid=$!
+		local waited=0
+		while kill -0 "$pid" 2>/dev/null && [[ $waited -lt 15 ]]; do
+			sleep 1
+			waited=$((waited + 1))
+		done
+		if kill -0 "$pid" 2>/dev/null; then
+			debug_log "AI analysis timed out"
+			kill "$pid" 2>/dev/null || true
+			analysis=""
+		else
+			analysis=$(cat "$tmp_output")
+		fi
+		rm -f "$tmp_output"
+	fi
+	unset FORK_JOIN_HOOK_CONTEXT
+
+	if [[ -n "$analysis" ]]; then
+		debug_log "AI analysis result: ${analysis:0:100}..."
+		echo "$analysis"
+		return 0
+	fi
+	return 1
+}
+
+# Append a new prompt to an existing PR description
+append_prompt_to_pr() {
+	local pr_number="$1"
+	local new_prompt="$2"
+
+	debug_log "Appending prompt to PR #${pr_number}"
+
+	# Get current PR body
+	local current_body
+	current_body="$(git_get_pr_body "$pr_number")"
+
+	if [[ -z "$current_body" ]]; then
+		debug_log "Could not retrieve PR body"
+		return 1
+	fi
+
+	# Generate timestamp for this prompt
+	local prompt_timestamp
+	prompt_timestamp=$(format_timestamp)
+
+	# Analyze if PR description needs content updates (not just appending prompt)
+	local ai_analysis=""
+	ai_analysis=$(analyze_pr_for_updates "$current_body" "$new_prompt") || true
+	debug_log "AI analysis: ${ai_analysis:0:100}..."
+
+	# Create the new prompt accordion section
+	local new_prompt_section="
+<details>
+<summary>📝 Prompt - ${prompt_timestamp}</summary>
+
+\`\`\`
+${new_prompt}
+\`\`\`
+
+</details>"
+
+	# Build the updated body
+	local updated_body="$current_body"
+
+	# If AI suggested updates to the description content, we could integrate them
+	# For now, we log it but primarily focus on appending the prompt
+	if [[ -n "$ai_analysis" && "$ai_analysis" != "NO_UPDATE_NEEDED" && "$ai_analysis" != *"NO_UPDATE"* ]]; then
+		debug_log "AI suggests description updates: ${ai_analysis:0:200}"
+		# Note: We could modify the PR body here to add new bullet points
+		# For safety, we just log it and append the prompt
+	fi
+
+	# Find where to append the new prompt section
+	# Strategy: Look for existing "## Prompt History" section or append at end
+	if [[ "$updated_body" == *"## Prompt History"* ]]; then
+		# Append the new prompt section after the existing prompt history
+		# Find the last </details> in the Prompt History section and append after it
+		updated_body="${updated_body}
+${new_prompt_section}"
+	else
+		# No prompt history section exists - create one
+		# Append it at the very end
+		updated_body="${updated_body}
+
+---
+
+## Prompt History
+${new_prompt_section}"
+	fi
+
+	# Update the PR
+	if git_update_pr_body "$pr_number" "$updated_body"; then
+		debug_log "Successfully updated PR #${pr_number} body"
+		log_info "Appended new prompt to PR #${pr_number}"
+		return 0
+	else
+		debug_log "Failed to update PR body"
+		return 1
+	fi
+}
+
 main() {
 	debug_log "main() called"
 	log_info "UserPromptSubmit hook triggered"
 
 	debug_log "PROMPT value: '${PROMPT:0:100}...'" # First 100 chars
+
+	# Ensure we're in a git repository first
+	if ! git_is_repo; then
+		debug_log "Not in a git repository, skipping"
+		log_debug "Not in a git repository, skipping"
+		exit 0
+	fi
+	debug_log "Confirmed: in a git repository"
+
+	# Check if this is a GitHub repository and we're on an appropriate branch
+	if ! git_should_plugin_activate; then
+		debug_log "Plugin should not activate (not GitHub repo or not on default/plugin branch)"
+		log_debug "Plugin not activating - not a GitHub repo or not on default/plugin branch"
+		exit 0
+	fi
+	debug_log "Plugin activation check passed"
 
 	# Check if prompt will make changes
 	if ! prompt_will_make_changes; then
@@ -337,14 +569,6 @@ main() {
 
 	debug_log "Prompt WILL make changes"
 	log_info "Detected change-making prompt"
-
-	# Ensure we're in a git repository
-	if ! git_is_repo; then
-		debug_log "ERROR: Not in a git repository"
-		log_error "Not in a git repository"
-		exit 1
-	fi
-	debug_log "Confirmed: in a git repository"
 
 	# Get current branch
 	local current_branch
@@ -416,7 +640,40 @@ SESS_EOF
 	else
 		debug_log "Already on feature branch: $current_branch"
 		log_info "Already on feature branch: $current_branch"
-		echo "Already on feature branch: $current_branch"
+
+		# Check if a PR exists for this branch
+		local existing_pr
+		existing_pr="$(git_get_pr_number "$current_branch")"
+
+		if [[ -n "$existing_pr" ]]; then
+			debug_log "Found existing PR #${existing_pr} for branch $current_branch"
+			log_info "Existing PR #${existing_pr} found, analyzing for updates..."
+
+			# Append the new prompt to the PR description
+			append_prompt_to_pr "$existing_pr" "$PROMPT"
+
+			echo "Updated PR #${existing_pr} with new prompt on branch: $current_branch"
+		else
+			debug_log "No existing PR for branch $current_branch"
+			echo "Already on feature branch: $current_branch"
+		fi
+
+		# Store the new prompt in session state for this continuation
+		if [[ -f "${STATE_DIR}/current_session" ]]; then
+			local session_id
+			session_id="$(cat "${STATE_DIR}/current_session")"
+			local session_file="${STATE_DIR}/${session_id}.json"
+
+			if [[ -f "$session_file" ]]; then
+				# Add this prompt to the prompts array with timestamp
+				local timestamp
+				timestamp=$(format_timestamp)
+				jq --arg prompt "$PROMPT" --arg ts "$timestamp" \
+					'.prompts = (.prompts // []) + [{"prompt": $prompt, "timestamp": $ts}]' \
+					"$session_file" >"${session_file}.tmp" && mv "${session_file}.tmp" "$session_file"
+				debug_log "Added prompt to session state"
+			fi
+		fi
 	fi
 
 	debug_log "Hook completed successfully"
