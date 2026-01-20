@@ -25,26 +25,34 @@ default_branch=$(git remote show origin 2>/dev/null | grep 'HEAD branch' | cut -
 echo "Default branch: $default_branch"
 ```
 
-### Step 2: Merge PR (if applicable)
+### Step 2: Merge PR or Detect Already Merged
 
-If on a feature branch (feat/, fix/, etc.), check for and merge the PR:
+If on a feature branch (feat/, fix/, etc.), check PR state and handle accordingly:
 
 ```bash
 # Check if current branch is a feature branch
 if [[ "$current_branch" =~ ^(build|ci|docs|feat|fix|perf|refactor|test)/ ]]; then
-    # Get PR number
-    pr_number=$(gh pr list --head "$current_branch" --json number --jq '.[0].number' 2>/dev/null || echo "")
+    # Get PR number (including merged/closed PRs)
+    pr_number=$(gh pr list --head "$current_branch" --state all --json number --jq '.[0].number' 2>/dev/null || echo "")
 
     if [[ -n "$pr_number" ]]; then
         # Check PR state
         pr_state=$(gh pr view "$pr_number" --json state --jq '.state')
 
-        if [[ "$pr_state" == "OPEN" ]]; then
+        case "$pr_state" in
+        "OPEN")
             echo "Merging PR #$pr_number..."
             gh pr merge "$pr_number" --squash --delete-branch
-        else
-            echo "PR #$pr_number is already $pr_state"
-        fi
+            # Mark branch for local deletion
+            ;;
+        "MERGED")
+            echo "PR #$pr_number is already merged"
+            # Mark branch for local deletion
+            ;;
+        "CLOSED")
+            echo "PR #$pr_number is closed (not merged)"
+            ;;
+        esac
     else
         echo "No PR found for this branch"
     fi
