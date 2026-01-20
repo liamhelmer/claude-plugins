@@ -286,7 +286,7 @@ main() {
 	output "=== Completing PR Workflow ==="
 	output ""
 
-	# Step 1: Merge PR if needed
+	# Step 1: Merge PR if needed (sets SHOULD_DELETE_LOCAL_BRANCH if already merged)
 	if ! merge_pr_if_needed "$current_branch"; then
 		output ""
 		output "PR merge failed. Please resolve issues and try again."
@@ -313,7 +313,13 @@ main() {
 
 	output ""
 
-	# Step 4: Clean up session state
+	# Step 4: Delete local feature branch if marked for deletion
+	if [[ -n "$SHOULD_DELETE_LOCAL_BRANCH" ]]; then
+		delete_local_branch "$SHOULD_DELETE_LOCAL_BRANCH" "$default_branch"
+		output ""
+	fi
+
+	# Step 5: Clean up session state
 	cleanup_session
 
 	output ""
