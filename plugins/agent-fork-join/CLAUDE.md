@@ -56,11 +56,12 @@ The plugin will NOT activate for:
 
 Use `/done` when you're finished with your work and want to:
 
-1. **Merge the PR** (if it exists and is open)
+1. **Merge the PR** (if it exists and is open) or detect if already merged
 2. **Switch to main branch**
 3. **Pull latest changes**
-4. **Resolve conflicts** (automatically if possible)
-5. **Run /compact** to consolidate conversation history
+4. **Delete local feature branch** (if PR was merged)
+5. **Resolve conflicts** (automatically if possible)
+6. **Run /compact** to consolidate conversation history
 
 ```
 /done
