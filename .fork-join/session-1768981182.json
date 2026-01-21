@@ -1,11 +1,21 @@
 {
-    "session_id": "session-1768981182",
-    "feature_branch": "feat/non-interactive-claude-calls",
-    "base_branch": "main",
-    "prompt": "Update agent-fork-join to invoke claude non-interactively with these commands to improve speed when doing prs and git commit messages: claude -p ping --model haiku --no-chrome --no-session-persistence --setting-sources '' --tools 'Bash,Edit,Read,git,gh' --disable-slash-commands --strict-mcp-config --mcp-config '' \"\n",
-    "state": "STARTED",
-    "started_at": "2026-01-21T07:39:42Z",
-    "agents": [],
-    "merged_count": 0,
-    "conflict_count": 0
+  "session_id": "session-1768981182",
+  "feature_branch": "feat/non-interactive-claude-calls",
+  "base_branch": "main",
+  "prompt": "Update agent-fork-join to invoke claude non-interactively with these commands to improve speed when doing prs and git commit messages: claude -p ping --model haiku --no-chrome --no-session-persistence --setting-sources '' --tools 'Bash,Edit,Read,git,gh' --disable-slash-commands --strict-mcp-config --mcp-config '' \"\n",
+  "state": "STARTED",
+  "started_at": "2026-01-21T07:39:42Z",
+  "agents": [],
+  "merged_count": 0,
+  "conflict_count": 0,
+  "prompts": [
+    {
+      "prompt": "I'm seeing this error now: ⏺ Ran 4 stop hooks                                                                                                                                                              \n  ⎿  Stop hook error: Failed with non-blocking status code: [HOOK DEBUG] [STOP] === Stop hook started ===                                                                       \n  [HOOK DEBUG] [STOP] PWD: /Users/liam.helmer/repos/badal-io/badal-documentation-standard                                                                                       \n  [HOOK DEBUG] [STOP] SCRIPT_DIR: /Users/liam.helmer/.claude/plugins/cache/enterprise-agent-flows/agent-fork-join/0.3.0/hooks                                                   \n  [HOOK DEBUG] [STOP] Sourced common.sh                                                                                                                                         \n  [HOOK DEBUG] [STOP] Sourced git-utils.sh                                                                                                                                      \n  [HOOK DEBUG] [STOP] About to call main()                                                                                                                                      \n  [HOOK DEBUG] [STOP] main() called                                                                                                                                            ",
+      "timestamp": "2026-01-21 20:39:17 UTC"
+    },
+    {
+      "prompt": "the /done command shouldn't touch remote repositories: it should only merge changes to the origin. If the PR on the branch is closed, check if it was merged. If it is, then just switch to main and pull",
+      "timestamp": "2026-01-21 23:47:05 UTC"
+    }
+  ]
 }
