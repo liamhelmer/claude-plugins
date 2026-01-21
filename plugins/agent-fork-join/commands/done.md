@@ -1,11 +1,11 @@
 ---
 name: "done"
-description: "Complete the current PR workflow: merge PR, switch to main, pull changes, resolve conflicts, and run compact."
+description: "Complete the current branch workflow: check PR status, switch to main, pull changes, and clean up local branch."
 ---
 
 # /done Command
 
-Complete the current PR workflow by merging, switching to main, and cleaning up.
+Complete the current branch workflow by switching to main and cleaning up. This is a **local-only** operation - it does not modify the remote repository.
 
 ## When This Command Is Invoked
 
@@ -25,9 +25,9 @@ default_branch=$(git remote show origin 2>/dev/null | grep 'HEAD branch' | cut -
 echo "Default branch: $default_branch"
 ```
 
-### Step 2: Merge PR or Detect Already Merged
+### Step 2: Check PR Status (Local Check Only)
 
-If on a feature branch (feat/, fix/, etc.), check PR state and handle accordingly:
+If on a feature branch (feat/, fix/, etc.), check PR state to determine if local cleanup is needed:
 
 ```bash
 # Check if current branch is a feature branch
@@ -41,16 +41,22 @@ if [[ "$current_branch" =~ ^(build|ci|docs|feat|fix|perf|refactor|test)/ ]]; the
 
         case "$pr_state" in
         "OPEN")
-            echo "Merging PR #$pr_number..."
-            gh pr merge "$pr_number" --squash --delete-branch
-            # Mark branch for local deletion
+            echo "PR #$pr_number is still open"
+            echo "Merge the PR on GitHub when ready, then run /done again"
             ;;
         "MERGED")
-            echo "PR #$pr_number is already merged"
+            echo "PR #$pr_number was merged"
             # Mark branch for local deletion
             ;;
         "CLOSED")
-            echo "PR #$pr_number is closed (not merged)"
+            # Check if it was actually merged
+            merged_at=$(gh pr view "$pr_number" --json mergedAt --jq '.mergedAt')
+            if [[ "$merged_at" != "null" ]]; then
+                echo "PR #$pr_number was merged"
+                # Mark branch for local deletion
+            else
+                echo "PR #$pr_number is closed (not merged)"
+            fi
             ;;
         esac
     else
@@ -84,7 +90,7 @@ If there are merge conflicts:
 
 ### Step 5: Delete Local Feature Branch
 
-If the PR was merged (either just now or previously), delete the local feature branch:
+If the PR was merged, delete the local feature branch:
 
 ```bash
 # Delete local branch if it was marked for deletion
@@ -109,7 +115,7 @@ After all steps complete successfully, run the `/compact` command to consolidate
 
 ## Error Handling
 
-- **PR has merge conflicts**: Tell the user they need to resolve conflicts on the PR first before running /done
+- **PR is still open**: Inform the user to merge the PR on GitHub first, then run /done again
 - **Cannot switch branches**: Check for uncommitted changes and stash them
 - **Pull fails with conflicts**: Try auto-resolution first, then ask user to resolve manually if needed
 
@@ -118,10 +124,10 @@ After all steps complete successfully, run the `/compact` command to consolidate
 Report progress at each step:
 
 ```
-=== Completing PR Workflow ===
+=== Completing Branch Workflow ===
 
-Checking for PR on branch feat/my-feature...
-PR #42 is already merged.
+Checking PR status for branch feat/my-feature...
+PR #42 was merged.
 
 Switching to main branch...
 Switched to main

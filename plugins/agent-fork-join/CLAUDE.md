@@ -52,11 +52,11 @@ The plugin will NOT activate for:
 
 ## Commands
 
-### /done - Complete PR Workflow
+### /done - Complete Branch Workflow (Local Only)
 
-Use `/done` when you're finished with your work and want to:
+Use `/done` when your PR has been merged and you want to clean up locally:
 
-1. **Merge the PR** (if it exists and is open) or detect if already merged
+1. **Check PR status** (was it merged?)
 2. **Switch to main branch**
 3. **Pull latest changes**
 4. **Delete local feature branch** (if PR was merged)
@@ -67,7 +67,7 @@ Use `/done` when you're finished with your work and want to:
 /done
 ```
 
-This is the recommended way to complete a PR workflow after your changes are ready.
+**Note:** This command does NOT merge PRs remotely. Merge your PR on GitHub first, then run `/done` to clean up your local environment.
 
 ## PR Prompt History
 

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# /done command - Complete PR workflow
+# /done command - Complete local branch workflow
 #
-# This script:
-# 1. Merges the PR (if not already merged)
+# This script (LOCAL ONLY - does not modify remote):
+# 1. Checks if current PR was merged
 # 2. Switches to main branch
 # 3. Pulls latest changes
-# 4. Handles any conflicts
+# 4. Deletes local feature branch (if PR was merged)
 # 5. Signals to run /compact
 
 set -euo pipefail
@@ -58,19 +58,19 @@ is_feature_branch() {
 # Global to track if we should delete the local branch
 SHOULD_DELETE_LOCAL_BRANCH=""
 
-# Merge the PR if it exists and is open
-# Sets SHOULD_DELETE_LOCAL_BRANCH if the PR is already merged and local branch needs cleanup
-merge_pr_if_needed() {
+# Check PR status (LOCAL ONLY - no remote modifications)
+# Sets SHOULD_DELETE_LOCAL_BRANCH if the PR was merged
+check_pr_status() {
 	local current_branch="$1"
 
 	if ! is_feature_branch "$current_branch"; then
-		debug_log "Not on a feature branch, skipping PR merge"
+		debug_log "Not on a feature branch, skipping PR check"
 		return 0
 	fi
 
 	# Check if gh CLI is available
 	if ! command -v gh >/dev/null 2>&1; then
-		output "Warning: gh CLI not available, cannot check/merge PR"
+		output "Warning: gh CLI not available, cannot check PR status"
 		return 0
 	fi
 
@@ -81,8 +81,6 @@ merge_pr_if_needed() {
 	if [[ -z "$pr_number" ]]; then
 		debug_log "No PR found for branch $current_branch"
 		output "No PR found for branch: $current_branch"
-		# Still mark for deletion if on a feature branch with no PR
-		SHOULD_DELETE_LOCAL_BRANCH="$current_branch"
 		return 0
 	fi
 
@@ -92,41 +90,29 @@ merge_pr_if_needed() {
 
 	case "$pr_state" in
 	"OPEN")
-		output "Found open PR #${pr_number}, attempting to merge..."
-
-		# Check if PR is mergeable
-		local mergeable
-		mergeable=$(gh pr view "$pr_number" --json mergeable --jq '.mergeable' 2>/dev/null || echo "UNKNOWN")
-
-		if [[ "$mergeable" == "CONFLICTING" ]]; then
-			output "Error: PR #${pr_number} has merge conflicts that need to be resolved first."
-			output "Please resolve conflicts and try again."
-			return 1
-		elif [[ "$mergeable" == "UNKNOWN" ]]; then
-			output "Warning: Could not determine if PR is mergeable. Attempting merge anyway..."
-		fi
-
-		# Attempt to merge with squash and delete branch
-		if gh pr merge "$pr_number" --squash --delete-branch 2>&1; then
-			output "Successfully merged PR #${pr_number}"
-			debug_log "PR #${pr_number} merged successfully"
-			# Remote branch deleted by gh, but local may still exist
-			SHOULD_DELETE_LOCAL_BRANCH="$current_branch"
-		else
-			output "Error: Failed to merge PR #${pr_number}"
-			output "You may need to merge manually or resolve any issues first."
-			return 1
-		fi
+		output "PR #${pr_number} is still open."
+		output "Merge the PR on GitHub when ready, then run /done again."
+		debug_log "PR #${pr_number} is open"
 		;;
 	"MERGED")
-		output "PR #${pr_number} is already merged."
+		output "PR #${pr_number} was merged."
 		debug_log "PR #${pr_number} already merged"
-		# Mark local branch for deletion since PR is already merged
+		# Mark local branch for deletion since PR was merged
 		SHOULD_DELETE_LOCAL_BRANCH="$current_branch"
 		;;
 	"CLOSED")
-		output "PR #${pr_number} is closed (not merged)."
-		debug_log "PR #${pr_number} is closed"
+		# Check if it was merged by looking at the merge commit
+		local merged_at
+		merged_at=$(gh pr view "$pr_number" --json mergedAt --jq '.mergedAt' 2>/dev/null || echo "null")
+
+		if [[ "$merged_at" != "null" && -n "$merged_at" ]]; then
+			output "PR #${pr_number} was merged."
+			debug_log "PR #${pr_number} was merged (closed state)"
+			SHOULD_DELETE_LOCAL_BRANCH="$current_branch"
+		else
+			output "PR #${pr_number} is closed (not merged)."
+			debug_log "PR #${pr_number} is closed without merge"
+		fi
 		;;
 	*)
 		output "PR #${pr_number} has unknown state: $pr_state"
@@ -283,15 +269,11 @@ main() {
 	debug_log "Default branch: $default_branch"
 
 	output ""
-	output "=== Completing PR Workflow ==="
+	output "=== Completing Branch Workflow ==="
 	output ""
 
-	# Step 1: Merge PR if needed (sets SHOULD_DELETE_LOCAL_BRANCH if already merged)
-	if ! merge_pr_if_needed "$current_branch"; then
-		output ""
-		output "PR merge failed. Please resolve issues and try again."
-		exit 1
-	fi
+	# Step 1: Check PR status (sets SHOULD_DELETE_LOCAL_BRANCH if PR was merged)
+	check_pr_status "$current_branch"
 
 	output ""
 
