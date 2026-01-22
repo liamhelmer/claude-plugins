@@ -18,6 +18,17 @@
       },
       "source": "./agent-fork-join",
       "category": "development"
+    },
+    {
+      "name": "jira",
+      "description": "Complete JIRA integration for development workflows with ticket tracking, smart commits, PR automation, and bidirectional sync via beads.",
+      "version": "1.0.0",
+      "author": {
+        "name": "liamhelmer",
+        "email": "liamhelmer@example.com"
+      },
+      "source": "./jira",
+      "category": "development"
     }
   ]
 }
