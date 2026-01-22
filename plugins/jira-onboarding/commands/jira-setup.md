@@ -63,16 +63,30 @@ After installation, run /jira-setup again.
 
 **IMPORTANT**: If any prerequisite is missing, STOP here and do not proceed to the next steps.
 
-### Step 2: Collect Configuration
+### Step 2: Get Defaults
 
-If prerequisites are met, use the AskUserQuestion tool to collect:
+Before prompting the user, retrieve sensible defaults:
 
-1. **JIRA URL** (required)
+```bash
+# Get email from git global config for JIRA username default
+git_email=$(git config --global user.email 2>/dev/null || echo "")
+
+# Default JIRA URL
+default_jira_url="https://badal.atlassian.net"
+```
+
+### Step 3: Collect Configuration
+
+If prerequisites are met, use the AskUserQuestion tool to collect configuration.
+Present defaults and allow user to override:
+
+1. **JIRA URL** (required, default: https://badal.atlassian.net)
    - Header: "JIRA URL"
    - Question: "What is your JIRA Cloud URL?"
    - Options:
-     - "https://company.atlassian.net" (example format)
-   - Note: User should provide their actual URL
+     - "https://badal.atlassian.net (Recommended)" - Use default Badal instance
+     - "Other" - Specify a different JIRA instance
+   - If user selects "Other", ask for the custom URL
 
 2. **Project Key** (required)
    - Header: "Project"
@@ -86,12 +100,15 @@ If prerequisites are met, use the AskUserQuestion tool to collect:
      - "No label filter" - Sync all issues in project
      - "Specify a label" - Only sync issues with this label
 
-4. **JIRA Username** (required)
+4. **JIRA Username** (required, default from git config)
    - Header: "Username"
    - Question: "What is your JIRA email/username?"
-   - Note: This is your Atlassian account email
+   - If git email is available, show: "Use [git_email] (from git config)?" with options:
+     - "[git_email] (Recommended)" - Use the git config email
+     - "Other" - Specify a different email
+   - If no git email found, ask for the email directly
 
-### Step 3: Initialize beads
+### Step 4: Initialize beads
 
 Check if beads is initialized in the repository:
 
@@ -103,7 +120,7 @@ if [[ ! -d ".beads" ]]; then
 fi
 ```
 
-### Step 4: Run beads Doctor
+### Step 5: Run beads Doctor
 
 Fix any beads configuration issues:
 
@@ -111,7 +128,7 @@ Fix any beads configuration issues:
 bd doctor --fix
 ```
 
-### Step 5: Configure JIRA Integration
+### Step 6: Configure JIRA Integration
 
 Set the JIRA configuration values:
 
@@ -131,7 +148,7 @@ fi
 bd config set jira.username "$USERNAME"
 ```
 
-### Step 6: Verify Configuration
+### Step 7: Verify Configuration
 
 Show the configured values:
 
@@ -139,7 +156,7 @@ Show the configured values:
 bd config list | grep jira
 ```
 
-### Step 7: Initial Sync
+### Step 8: Initial Sync
 
 Perform the first sync from JIRA:
 
@@ -147,7 +164,7 @@ Perform the first sync from JIRA:
 bd jira sync --pull
 ```
 
-### Step 8: Show Summary
+### Step 9: Show Summary
 
 Display a summary of what was configured and useful next commands:
 

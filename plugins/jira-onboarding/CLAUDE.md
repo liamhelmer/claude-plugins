@@ -20,23 +20,27 @@ The command will:
    - Verify `JIRA_API_TOKEN` environment variable is set
    - Verify `bd` (beads CLI) is installed and available
 
-2. **Collect Configuration** (if prerequisites met)
-   - Ask for JIRA URL (e.g., https://company.atlassian.net)
-   - Ask for project key (e.g., PROJ)
-   - Ask for optional label filter (e.g., DevEx)
-   - Ask for JIRA username/email
+2. **Get Defaults**
+   - Get email from `git config --global user.email` for username default
+   - Default JIRA URL: `https://badal.atlassian.net`
 
-3. **Setup beads**
+3. **Collect Configuration** (if prerequisites met)
+   - JIRA URL: Default to https://badal.atlassian.net (allow override)
+   - Project key (e.g., PROJ)
+   - Optional label filter (e.g., DevEx)
+   - JIRA username: Default to git email (allow override)
+
+4. **Setup beads**
    - Initialize beads if `.beads/` directory doesn't exist
    - Run `bd doctor --fix` to resolve any issues
 
-4. **Configure JIRA**
+5. **Configure JIRA**
    - Set `jira.url` config
    - Set `jira.project` config
    - Set `jira.label` config (if provided)
    - Set `jira.username` config
 
-5. **Initial Sync**
+6. **Initial Sync**
    - Run `bd jira sync --pull` to import issues from JIRA
 
 ## Prerequisite Instructions
@@ -90,10 +94,17 @@ User: /jira-setup
     │
     ▼ Prerequisites met
 ┌─────────────────────────────────────────┐
-│ Ask for JIRA URL                        │
+│ Get defaults:                           │
+│   git_email = git config user.email     │
+│   jira_url = badal.atlassian.net        │
+└─────────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────────┐
+│ Ask for JIRA URL (default: badal)       │
 │ Ask for project key                     │
 │ Ask for optional label                  │
-│ Ask for JIRA username/email             │
+│ Ask for username (default: git email)   │
 └─────────────────────────────────────────┘
     │
     ▼

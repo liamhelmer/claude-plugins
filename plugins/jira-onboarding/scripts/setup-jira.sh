@@ -11,6 +11,10 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Defaults
+DEFAULT_JIRA_URL="https://badal.atlassian.net"
+DEFAULT_GIT_EMAIL=$(git config --global user.email 2>/dev/null || echo "")
+
 # Output functions
 info() {
 	echo -e "${BLUE}$1${NC}"
@@ -197,19 +201,45 @@ main() {
 		exit 1
 	fi
 
-	# If running non-interactively, require arguments
-	if [[ $# -lt 3 ]]; then
-		echo "Usage: $0 <jira_url> <project_key> <username> [label]"
+	# Show defaults
+	info "Defaults detected:"
+	echo "  JIRA URL: $DEFAULT_JIRA_URL"
+	if [[ -n "$DEFAULT_GIT_EMAIL" ]]; then
+		echo "  Username: $DEFAULT_GIT_EMAIL (from git config)"
+	else
+		echo "  Username: (not found in git config)"
+	fi
+	echo ""
+
+	# If running non-interactively, require at least project key
+	# URL and username can use defaults
+	if [[ $# -lt 1 ]]; then
+		echo "Usage: $0 <project_key> [jira_url] [username] [label]"
 		echo ""
-		echo "Example:"
-		echo "  $0 https://company.atlassian.net PROJ user@company.com DevEx"
+		echo "Arguments:"
+		echo "  project_key  - JIRA project key (required, e.g., PROJ)"
+		echo "  jira_url     - JIRA URL (default: $DEFAULT_JIRA_URL)"
+		echo "  username     - JIRA email (default: $DEFAULT_GIT_EMAIL)"
+		echo "  label        - Optional label filter"
+		echo ""
+		echo "Examples:"
+		echo "  $0 PGF                                    # Use all defaults"
+		echo "  $0 PGF https://other.atlassian.net        # Custom URL"
+		echo "  $0 PGF \"\" other@email.com DevEx          # Custom username and label"
 		exit 1
 	fi
 
-	local jira_url="$1"
-	local project_key="$2"
-	local username="$3"
+	local project_key="$1"
+	local jira_url="${2:-$DEFAULT_JIRA_URL}"
+	local username="${3:-$DEFAULT_GIT_EMAIL}"
 	local label="${4:-}"
+
+	# Validate username is set
+	if [[ -z "$username" ]]; then
+		error "Username is required but could not be determined from git config."
+		echo "Please provide username as third argument."
+		exit 1
+	fi
 
 	# Initialize beads
 	init_beads
