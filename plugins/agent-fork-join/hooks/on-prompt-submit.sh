@@ -165,7 +165,7 @@ validate_branch_type() {
 # - Converts spaces and invalid chars to hyphens
 # - Converts to lowercase
 # - Removes consecutive hyphens
-# - Limits length
+# - Limits length (truncates at word boundaries to avoid partial words)
 sanitize_branch_name() {
 	local input="$1"
 	local max_length="${2:-50}"
@@ -184,8 +184,16 @@ sanitize_branch_name() {
 	# Remove leading/trailing hyphens and dots
 	sanitized=$(echo "$sanitized" | sed 's/^[-.]*//' | sed 's/[-.]*$//')
 
-	# Limit length
-	sanitized="${sanitized:0:$max_length}"
+	# Truncate at word boundary (hyphen) to avoid partial words
+	if [[ ${#sanitized} -gt $max_length ]]; then
+		# First truncate to max_length
+		sanitized="${sanitized:0:$max_length}"
+		# Then find the last hyphen and truncate there to keep whole words
+		if [[ "$sanitized" == *-* ]]; then
+			# Remove the partial word after the last hyphen
+			sanitized="${sanitized%-*}"
+		fi
+	fi
 
 	# Remove trailing hyphen after truncation
 	sanitized=$(echo "$sanitized" | sed 's/[-.]*$//')
@@ -197,12 +205,6 @@ sanitize_branch_name() {
 generate_ai_branch_name() {
 	local prompt_text="$1"
 	local ai_branch=""
-
-	# Check if claude CLI is available
-	if ! command -v claude >/dev/null 2>&1; then
-		debug_log "Claude CLI not available, falling back to heuristic"
-		return 1
-	fi
 
 	debug_log "Using Claude AI to generate branch name..."
 
@@ -219,42 +221,17 @@ VALID TYPES: feat, fix, refactor, perf, test, docs, build, ci
 FORMAT: <type>/<short-description>
 - lowercase only
 - hyphens between words
-- max 30 chars in description
+- max 40 chars in description
+- use complete words only (no truncated words)
 
 TASK: ${sanitized_prompt}
 
 OUTPUT ONLY THE BRANCH NAME (e.g., feat/add-user-auth):"
 
-	# Call Claude CLI with minimal settings and 10s timeout
-	# Set FORK_JOIN_HOOK_CONTEXT to prevent recursive hook calls
+	# Call Claude CLI with speed optimizations
 	export FORK_JOIN_HOOK_CONTEXT=1
 	local raw_response=""
-
-	# Use timeout to prevent blocking (10 seconds max)
-	if command -v timeout >/dev/null 2>&1; then
-		raw_response=$(echo "$ai_prompt" | timeout 10 claude --print --model haiku -p - 2>/dev/null) || true
-	elif command -v gtimeout >/dev/null 2>&1; then
-		raw_response=$(echo "$ai_prompt" | gtimeout 10 claude --print --model haiku -p - 2>/dev/null) || true
-	else
-		# Fallback: run without timeout but with background kill after 10s
-		local tmp_output
-		tmp_output=$(mktemp)
-		(echo "$ai_prompt" | claude --print --model haiku -p - >"$tmp_output" 2>/dev/null) &
-		local pid=$!
-		local waited=0
-		while kill -0 "$pid" 2>/dev/null && [[ $waited -lt 10 ]]; do
-			sleep 1
-			waited=$((waited + 1))
-		done
-		if kill -0 "$pid" 2>/dev/null; then
-			debug_log "AI call timed out after 10s, killing"
-			kill "$pid" 2>/dev/null || true
-			raw_response=""
-		else
-			raw_response=$(cat "$tmp_output")
-		fi
-		rm -f "$tmp_output"
-	fi
+	raw_response=$(claude_fast_call "$ai_prompt" 10)
 	unset FORK_JOIN_HOOK_CONTEXT
 
 	debug_log "AI raw response: '${raw_response:0:100}...'"
@@ -271,7 +248,7 @@ OUTPUT ONLY THE BRANCH NAME (e.g., feat/add-user-auth):"
 		local branch_type branch_desc
 		branch_type=$(echo "$ai_branch" | cut -d'/' -f1)
 		branch_desc=$(echo "$ai_branch" | cut -d'/' -f2-)
-		branch_desc=$(sanitize_branch_name "$branch_desc" 30)
+		branch_desc=$(sanitize_branch_name "$branch_desc" 40)
 		ai_branch="${branch_type}/${branch_desc}"
 	fi
 
@@ -348,7 +325,7 @@ generate_heuristic_branch_name() {
 	}')
 
 	# Sanitize the slug
-	slug=$(sanitize_branch_name "$slug" 30)
+	slug=$(sanitize_branch_name "$slug" 40)
 
 	if [[ -z "$slug" || "$slug" == "-" ]]; then
 		slug="task-$(date +%s | tail -c 6)"
@@ -395,11 +372,6 @@ analyze_pr_for_updates() {
 	local current_body="$1"
 	local new_prompt="$2"
 
-	if ! command -v claude >/dev/null 2>&1; then
-		debug_log "Claude CLI not available for PR analysis"
-		return 1
-	fi
-
 	debug_log "Using Claude haiku to analyze PR description..."
 
 	# Truncate inputs for AI (prevent context overflow)
@@ -429,29 +401,7 @@ Be concise. Output nothing else."
 
 	export FORK_JOIN_HOOK_CONTEXT=1
 	local analysis=""
-	if command -v timeout >/dev/null 2>&1; then
-		analysis=$(echo "$ai_prompt" | timeout 15 claude --print --model haiku -p - 2>/dev/null) || true
-	elif command -v gtimeout >/dev/null 2>&1; then
-		analysis=$(echo "$ai_prompt" | gtimeout 15 claude --print --model haiku -p - 2>/dev/null) || true
-	else
-		local tmp_output
-		tmp_output=$(mktemp)
-		(echo "$ai_prompt" | claude --print --model haiku -p - >"$tmp_output" 2>/dev/null) &
-		local pid=$!
-		local waited=0
-		while kill -0 "$pid" 2>/dev/null && [[ $waited -lt 15 ]]; do
-			sleep 1
-			waited=$((waited + 1))
-		done
-		if kill -0 "$pid" 2>/dev/null; then
-			debug_log "AI analysis timed out"
-			kill "$pid" 2>/dev/null || true
-			analysis=""
-		else
-			analysis=$(cat "$tmp_output")
-		fi
-		rm -f "$tmp_output"
-	fi
+	analysis=$(claude_fast_call "$ai_prompt" 15)
 	unset FORK_JOIN_HOOK_CONTEXT
 
 	if [[ -n "$analysis" ]]; then

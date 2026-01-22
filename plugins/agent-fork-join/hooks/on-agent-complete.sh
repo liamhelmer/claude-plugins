@@ -14,6 +14,50 @@ source "${SCRIPT_DIR}/lib/common.sh"
 source "${SCRIPT_DIR}/lib/git-utils.sh"
 source "${SCRIPT_DIR}/lib/daemon-client.sh"
 
+# Generate a brief commit message for agent work using AI
+generate_agent_commit_message() {
+	local agent_id="$1"
+	local changed_files="$2"
+
+	# Limit file list for prompt
+	local file_summary
+	file_summary=$(echo "$changed_files" | head -10)
+	local file_count
+	file_count=$(echo "$changed_files" | wc -l | tr -d ' ')
+
+	local ai_prompt="Generate a brief git commit message for work done by agent '${agent_id}'.
+
+FILES CHANGED (${file_count} total):
+${file_summary}
+
+RULES:
+- Start with a verb (add, update, fix, implement, etc.)
+- Max 50 characters for the first line
+- Be specific but concise
+- No type prefix needed (like feat: or fix:)
+
+OUTPUT ONLY THE COMMIT MESSAGE, nothing else."
+
+	export FORK_JOIN_HOOK_CONTEXT=1
+	local commit_msg=""
+	commit_msg=$(claude_fast_call "$ai_prompt" 8)
+	unset FORK_JOIN_HOOK_CONTEXT
+
+	if [[ -n "$commit_msg" ]]; then
+		# Clean up: take first line, remove quotes
+		commit_msg=$(echo "$commit_msg" | head -1 | sed 's/^["'"'"']//;s/["'"'"']$//')
+		# Truncate if too long
+		if [[ ${#commit_msg} -gt 72 ]]; then
+			commit_msg="${commit_msg:0:69}..."
+		fi
+		echo "$commit_msg"
+		return 0
+	fi
+
+	# Fallback message
+	echo "Agent ${agent_id} work on ${file_count} file(s)"
+}
+
 # Configuration
 STATE_DIR="${FORK_JOIN_STATE_DIR:-.fork-join}"
 DAEMON_SOCKET="${FORK_JOIN_DAEMON_SOCKET:-/tmp/merge-daemon.sock}"
@@ -97,19 +141,15 @@ EOF
 
 	log_info "Changes detected, preparing commit"
 
-	# Use provided commit message or generate one
+	# Get list of changed files
+	local changed_files
+	changed_files=$(git status --porcelain | awk '{print $2}')
+
+	# Use provided commit message or generate one with AI
 	if [[ -z "$COMMIT_MESSAGE" ]]; then
-		# Request commit message from caller
-		cat <<EOF
-{
-    "agent_complete": false,
-    "agent_id": "${AGENT_ID}",
-    "changes": true,
-    "needs_commit_message": true,
-    "changed_files": $(git status --porcelain | jq -R -s 'split("\n") | map(select(length > 0))')
-}
-EOF
-		exit 0
+		log_info "No commit message provided, generating with AI..."
+		COMMIT_MESSAGE=$(generate_agent_commit_message "$AGENT_ID" "$changed_files")
+		log_info "Generated commit message: $COMMIT_MESSAGE"
 	fi
 
 	# Stage all changes
