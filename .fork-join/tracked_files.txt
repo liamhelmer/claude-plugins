@@ -1,5 +1,4 @@
-/Users/liam.helmer/repos/liamhelmer/enterpise-agent-flows/plugins/agent-fork-join/hooks/on-prompt-submit.sh
-/Users/liam.helmer/repos/liamhelmer/enterpise-agent-flows/plugins/agent-fork-join/hooks/on-agent-complete.sh
-/Users/liam.helmer/repos/liamhelmer/enterpise-agent-flows/plugins/agent-fork-join/scripts/done.sh
-/Users/liam.helmer/repos/liamhelmer/enterpise-agent-flows/plugins/agent-fork-join/commands/done.md
-/Users/liam.helmer/repos/liamhelmer/enterpise-agent-flows/plugins/agent-fork-join/CLAUDE.md
+/Users/liam.helmer/repos/liamhelmer/enterpise-agent-flows/plugins/jira-onboarding/SKILL.md
+/Users/liam.helmer/repos/liamhelmer/enterpise-agent-flows/plugins/jira-onboarding/CLAUDE.md
+/Users/liam.helmer/repos/liamhelmer/enterpise-agent-flows/plugins/jira-onboarding/commands/jira-setup.md
+/Users/liam.helmer/repos/liamhelmer/enterpise-agent-flows/plugins/jira-onboarding/scripts/setup-jira.sh

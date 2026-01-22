@@ -1,0 +1,11 @@
+{
+    "session_id": "session-1769106578",
+    "feature_branch": "feat/jira-plugin-onboarding",
+    "base_branch": "main",
+    "prompt": "Create a new plugin that automatically onboards the user to JIRA with beads. It will ask for the api token to be in the environment at JIRA_API_TOKEN, and that beads is installed. if they're not, it will instruct the user how to get those things and set them up. If those things are set up, then it will set up beads in the repository (if not present), use beads doctor to fix any beads issues, and sync with JIRA. It will ask the user for a project name and an optional label to sync with for the project.\n",
+    "state": "STARTED",
+    "started_at": "2026-01-22T18:29:38Z",
+    "agents": [],
+    "merged_count": 0,
+    "conflict_count": 0
+}
