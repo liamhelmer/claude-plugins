@@ -1,0 +1,11 @@
+{
+    "session_id": "session-1769112119",
+    "feature_branch": "fix/remove-compact-execution-from-done",
+    "base_branch": "main",
+    "prompt": "remove execution of /compact from the /done command. just suggest it to the user as a good practice\n",
+    "state": "STARTED",
+    "started_at": "2026-01-22T20:01:59Z",
+    "agents": [],
+    "merged_count": 0,
+    "conflict_count": 0
+}
