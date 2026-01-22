@@ -167,9 +167,9 @@ rm -f .fork-join/tracked_files.txt
 # Note: .beads/current-issue is only removed if user selected "Done" in Step 3
 ```
 
-### Step 8: Run Compact
+### Step 8: Suggest Compact
 
-After all steps complete successfully, run the `/compact` command to consolidate conversation history.
+After all steps complete successfully, suggest to the user that they can run `/compact` to consolidate conversation history. Do NOT execute it automatically.
 
 ## Error Handling
 
@@ -198,5 +198,5 @@ Deleted local branch: feat/my-feature
 
 === Workflow Complete ===
 
-Run /compact to consolidate conversation history.
+Tip: Run /compact to consolidate conversation history.
 ```
