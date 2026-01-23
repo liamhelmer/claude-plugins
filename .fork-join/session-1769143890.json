@@ -1,0 +1,21 @@
+{
+  "session_id": "session-1769143890",
+  "feature_branch": "fix/jira-plugin-sql-string-setup",
+  "base_branch": "main",
+  "prompt": "The JIRA plugin isn't pushing the SQL string that the local beads instance is using during setup. Please fix it so that it uses it by default, but gives the user the option to change it.\n",
+  "state": "STARTED",
+  "started_at": "2026-01-23T04:51:30Z",
+  "agents": [],
+  "merged_count": 0,
+  "conflict_count": 0,
+  "prompts": [
+    {
+      "prompt": "For all the parameters gathered in setup, there should be a free-form text field available for the user to enter text in the first prompt, rather than having an \"other\" option and then allowing the user to enter the parameter later.",
+      "timestamp": "2026-01-23 04:54:53 UTC"
+    },
+    {
+      "prompt": "when running setup, if JIRA is already configured, the user should be given the option to go through the setup anyway and reconfigure it.",
+      "timestamp": "2026-01-23 05:02:22 UTC"
+    }
+  ]
+}
