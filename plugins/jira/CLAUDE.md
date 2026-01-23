@@ -40,7 +40,7 @@ The command will:
 
 5. **Setup beads**
    - Initialize beads if `.beads/` directory doesn't exist
-   - Run `bd doctor --fix` to resolve any issues
+   - **Do NOT run `bd doctor --fix` before JIRA sync** (causes sync divergence)
 
 6. **Configure JIRA**
    - Set `jira.url` config
@@ -51,6 +51,7 @@ The command will:
 
 7. **Initial Sync**
    - Run `bd jira sync --pull` to import issues from JIRA
+   - This handles sync state properly
 
 ### /jira:work - Start Working on a Ticket
 

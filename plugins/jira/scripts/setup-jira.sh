@@ -138,6 +138,8 @@ show_beads_instructions() {
 }
 
 # Initialize beads if needed
+# NOTE: For JIRA integration, we init THEN configure JIRA THEN sync
+# Do NOT run bd doctor --fix before JIRA sync, as it can cause sync divergence
 init_beads() {
 	if [[ ! -d ".beads" ]]; then
 		info "Initializing beads..."
@@ -146,13 +148,6 @@ init_beads() {
 	else
 		info "beads already initialized"
 	fi
-}
-
-# Run beads doctor
-run_doctor() {
-	info "Running beads diagnostics..."
-	bd doctor --fix 2>/dev/null || true
-	echo ""
 }
 
 # Configure JIRA settings
@@ -329,13 +324,10 @@ main() {
 	# Initialize beads
 	init_beads
 
-	# Run doctor
-	run_doctor
-
-	# Configure JIRA
+	# Configure JIRA BEFORE sync (important: do NOT run bd doctor --fix before sync)
 	configure_jira "$jira_url" "$project_key" "$label" "$username" "$jql"
 
-	# Initial sync
+	# Initial sync - this pulls issues from JIRA and handles sync state
 	initial_sync
 
 	# Show summary
