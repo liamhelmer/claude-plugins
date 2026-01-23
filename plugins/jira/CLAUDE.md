@@ -16,15 +16,20 @@ Use `/jira:setup` to set up JIRA integration with beads.
 
 The command will:
 
-1. **Check Prerequisites**
+1. **Check for Existing Configuration**
+   - If JIRA is already configured, show current settings
+   - Ask user: "Would you like to reconfigure?" with options "Yes, reconfigure" or "No, keep existing"
+   - If user chooses to keep existing, exit without changes
+
+2. **Check Prerequisites**
    - Verify `JIRA_API_TOKEN` environment variable is set
    - Verify `bd` (beads CLI) is installed and available
 
-2. **Get Defaults**
+3. **Get Defaults**
    - Get email from `git config --global user.email` for username default
    - Default JIRA URL: `https://badal.atlassian.net`
 
-3. **Collect Configuration** (if prerequisites met)
+4. **Collect Configuration** (if prerequisites met)
    - Collect ALL values in a SINGLE AskUserQuestion call with multiple questions
    - Each question allows direct text input (user can type custom values or select defaults)
    - JIRA URL: Default to https://badal.atlassian.net
@@ -33,18 +38,18 @@ The command will:
    - JQL filter: Default to `sprint in openSprints() OR status in ("In Review", "In Progress")`
    - JIRA username: Default to git email
 
-4. **Setup beads**
+5. **Setup beads**
    - Initialize beads if `.beads/` directory doesn't exist
    - Run `bd doctor --fix` to resolve any issues
 
-5. **Configure JIRA**
+6. **Configure JIRA**
    - Set `jira.url` config
    - Set `jira.project` config
    - Set `jira.label` config (if provided)
    - Set `jira.jql` config (if provided, default: active issues only)
    - Set `jira.username` config
 
-6. **Initial Sync**
+7. **Initial Sync**
    - Run `bd jira sync --pull` to import issues from JIRA
 
 ### /jira:work - Start Working on a Ticket

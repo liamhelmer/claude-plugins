@@ -12,6 +12,10 @@
     {
       "prompt": "For all the parameters gathered in setup, there should be a free-form text field available for the user to enter text in the first prompt, rather than having an \"other\" option and then allowing the user to enter the parameter later.",
       "timestamp": "2026-01-23 04:54:53 UTC"
+    },
+    {
+      "prompt": "when running setup, if JIRA is already configured, the user should be given the option to go through the setup anyway and reconfigure it.",
+      "timestamp": "2026-01-23 05:02:22 UTC"
     }
   ]
 }

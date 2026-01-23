@@ -11,7 +11,56 @@ Configure JIRA Cloud integration with beads issue tracking. This command validat
 
 Execute the following steps in order:
 
-### Step 1: Check Prerequisites
+### Step 1: Check for Existing Configuration
+
+Before doing anything else, check if JIRA is already configured:
+
+```bash
+# Check if beads is initialized and JIRA is configured
+if [[ -d ".beads" ]]; then
+    existing_url=$(bd config get jira.url 2>/dev/null || echo "")
+    if [[ -n "$existing_url" ]]; then
+        # JIRA is already configured
+    fi
+fi
+```
+
+**If JIRA is already configured**, show the existing configuration and ask the user:
+
+```
+=== Existing JIRA Configuration ===
+
+  URL:      https://badal.atlassian.net
+  Project:  PGF
+  Label:    DevEx
+  Username: user@example.com
+  JQL:      sprint in openSprints() OR status in ("In Review", "In Progress")
+
+JIRA is already configured. Would you like to reconfigure it?
+```
+
+Use AskUserQuestion:
+
+- Header: "Reconfigure"
+- Question: "JIRA is already configured. Would you like to reconfigure it?"
+- Options:
+  - "Yes, reconfigure" - Proceed with setup to update configuration
+  - "No, keep existing" - Exit setup, keep current configuration
+- multiSelect: false
+
+**If user selects "No, keep existing"**, tell them:
+
+```
+Keeping existing JIRA configuration. No changes made.
+
+Run /jira:work to start working on a ticket.
+```
+
+Then STOP - do not proceed with the remaining steps.
+
+**If user selects "Yes, reconfigure"** or **JIRA is not configured**, continue with Step 2.
+
+### Step 2: Check Prerequisites
 
 Check for required prerequisites before proceeding:
 
@@ -63,7 +112,7 @@ After installation, run /jira:setup again.
 
 **IMPORTANT**: If any prerequisite is missing, STOP here and do not proceed to the next steps.
 
-### Step 2: Get Defaults
+### Step 3: Get Defaults
 
 Before prompting the user, retrieve sensible defaults:
 
@@ -75,7 +124,7 @@ git_email=$(git config --global user.email 2>/dev/null || echo "")
 default_jira_url="https://badal.atlassian.net"
 ```
 
-### Step 3: Collect Configuration
+### Step 4: Collect Configuration
 
 If prerequisites are met, use the AskUserQuestion tool to collect all configuration values at once.
 Each question should allow direct text input - users can type custom values or select from suggested options.
@@ -125,7 +174,7 @@ questions:
         description: "Type a custom JQL expression"
     multiSelect: false
 
-  - question: "JIRA username/email? (default: {git_email from Step 2})"
+  - question: "JIRA username/email? (default: {git_email from Step 3})"
     header: "Username"
     options:
       - label: "{git_email}"
@@ -143,7 +192,7 @@ questions:
 - If user selects "Active issues" for JQL, use: `sprint in openSprints() OR status in ("In Review", "In Progress")`
 - If user selects "No filter" for JQL, leave it empty
 
-### Step 4: Initialize beads
+### Step 5: Initialize beads
 
 Check if beads is initialized in the repository:
 
@@ -155,7 +204,7 @@ if [[ ! -d ".beads" ]]; then
 fi
 ```
 
-### Step 5: Run beads Doctor
+### Step 6: Run beads Doctor
 
 Fix any beads configuration issues:
 
@@ -163,7 +212,7 @@ Fix any beads configuration issues:
 bd doctor --fix
 ```
 
-### Step 6: Configure JIRA Integration
+### Step 7: Configure JIRA Integration
 
 Set the JIRA configuration values:
 
@@ -188,7 +237,7 @@ fi
 bd config set jira.username "$USERNAME"
 ```
 
-### Step 7: Verify Configuration
+### Step 8: Verify Configuration
 
 Show the configured values:
 
@@ -196,7 +245,7 @@ Show the configured values:
 bd config list | grep jira
 ```
 
-### Step 8: Initial Sync
+### Step 9: Initial Sync
 
 Perform the first sync from JIRA:
 
@@ -204,7 +253,7 @@ Perform the first sync from JIRA:
 bd jira sync --pull
 ```
 
-### Step 9: Show Summary
+### Step 10: Show Summary
 
 Display a summary of what was configured and useful next commands:
 

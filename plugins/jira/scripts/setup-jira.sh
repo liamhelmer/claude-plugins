@@ -33,6 +33,46 @@ error() {
 	echo -e "${RED}$1${NC}"
 }
 
+# Check if JIRA is already configured
+check_existing_config() {
+	if [[ ! -d ".beads" ]]; then
+		return 1
+	fi
+
+	local existing_url
+	existing_url=$(bd config get jira.url 2>/dev/null || echo "")
+
+	if [[ -n "$existing_url" ]]; then
+		return 0
+	fi
+
+	return 1
+}
+
+# Show existing configuration
+show_existing_config() {
+	echo "=== Existing JIRA Configuration ==="
+	echo ""
+
+	local url project label username jql
+	url=$(bd config get jira.url 2>/dev/null || echo "")
+	project=$(bd config get jira.project 2>/dev/null || echo "")
+	label=$(bd config get jira.label 2>/dev/null || echo "")
+	username=$(bd config get jira.username 2>/dev/null || echo "")
+	jql=$(bd config get jira.jql 2>/dev/null || echo "")
+
+	echo "  URL:      $url"
+	echo "  Project:  $project"
+	if [[ -n "$label" ]]; then
+		echo "  Label:    $label"
+	fi
+	echo "  Username: $username"
+	if [[ -n "$jql" ]]; then
+		echo "  JQL:      $jql"
+	fi
+	echo ""
+}
+
 # Check prerequisites
 check_prerequisites() {
 	local missing=0
@@ -196,6 +236,29 @@ main() {
 	echo ""
 	echo "=== JIRA Integration Setup ==="
 	echo ""
+
+	# Check for existing configuration first
+	if check_existing_config; then
+		show_existing_config
+
+		# Signal to agent that reconfiguration confirmation is needed
+		# If --force flag is passed, skip the confirmation
+		if [[ "${1:-}" != "--force" ]]; then
+			echo "JIRA_ALREADY_CONFIGURED=true"
+			echo ""
+			echo "JIRA is already configured. The Claude agent should ask:"
+			echo "  'JIRA is already configured. Would you like to reconfigure it?'"
+			echo "  Options: 'Yes, reconfigure' or 'No, keep existing'"
+			echo ""
+			echo "To reconfigure, run: $0 --force <project_key> [other args...]"
+			exit 0
+		fi
+
+		# --force was passed, shift it off and continue
+		shift
+		warning "Reconfiguring JIRA integration..."
+		echo ""
+	fi
 
 	# Check prerequisites
 	if ! check_prerequisites; then
