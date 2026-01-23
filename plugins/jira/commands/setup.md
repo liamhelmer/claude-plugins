@@ -77,46 +77,71 @@ default_jira_url="https://badal.atlassian.net"
 
 ### Step 3: Collect Configuration
 
-If prerequisites are met, use the AskUserQuestion tool to collect configuration.
-Present defaults and allow user to override:
+If prerequisites are met, use the AskUserQuestion tool to collect all configuration values at once.
+Each question should allow direct text input - users can type custom values or select from suggested options.
 
-1. **JIRA URL** (required, default: https://badal.atlassian.net)
-   - Header: "JIRA URL"
-   - Question: "What is your JIRA Cloud URL?"
-   - Options:
-     - "https://badal.atlassian.net (Recommended)" - Use default Badal instance
-     - "Other" - Specify a different JIRA instance
-   - If user selects "Other", ask for the custom URL
+**IMPORTANT**: Collect ALL values in a SINGLE AskUserQuestion call with multiple questions.
+Show defaults clearly in the question text so users can accept them by selecting the default option, or type their own value directly.
 
-2. **Project Key** (required)
-   - Header: "Project"
-   - Question: "What is your JIRA project key?"
-   - Note: This is the prefix in issue IDs (e.g., PROJ in PROJ-123)
+Use this format for the AskUserQuestion call:
 
-3. **Label Filter** (optional)
-   - Header: "Label"
-   - Question: "Would you like to filter by a JIRA label? (optional)"
-   - Options:
-     - "No label filter" - Sync all issues in project
-     - "Specify a label" - Only sync issues with this label
+```
+questions:
+  - question: "JIRA URL? (default: https://badal.atlassian.net)"
+    header: "JIRA URL"
+    options:
+      - label: "https://badal.atlassian.net"
+        description: "Default Badal JIRA instance (Recommended)"
+      - label: "Enter URL"
+        description: "Type a custom JIRA Cloud URL"
+    multiSelect: false
 
-4. **JQL Filter** (optional, recommended default)
-   - Header: "JQL Filter"
-   - Question: "Would you like to add a JQL filter to limit which issues are synced?"
-   - Options:
-     - "Active issues only (Recommended)" - Use default: `sprint in openSprints() OR status in ("In Review", "In Progress")`
-     - "No JQL filter" - Sync all issues matching project/label
-     - "Custom JQL" - Specify a custom JQL expression
-   - Default JQL: `sprint in openSprints() OR status in ("In Review", "In Progress")`
-   - This limits sync to issues that are actively being worked on
+  - question: "Project key? (e.g., PGF, PROJ - the prefix in issue IDs like PROJ-123)"
+    header: "Project"
+    options:
+      - label: "PGF"
+        description: "Default project key"
+      - label: "Enter key"
+        description: "Type your JIRA project key"
+    multiSelect: false
 
-5. **JIRA Username** (required, default from git config)
-   - Header: "Username"
-   - Question: "What is your JIRA email/username?"
-   - If git email is available, show: "Use [git_email] (from git config)?" with options:
-     - "[git_email] (Recommended)" - Use the git config email
-     - "Other" - Specify a different email
-   - If no git email found, ask for the email directly
+  - question: "Label filter? (optional - leave blank to sync all issues)"
+    header: "Label"
+    options:
+      - label: "No filter"
+        description: "Sync all issues in the project"
+      - label: "Enter label"
+        description: "Type a label to filter issues (e.g., DevEx)"
+    multiSelect: false
+
+  - question: "JQL filter? (default filters to active sprint/in-progress issues)"
+    header: "JQL"
+    options:
+      - label: "Active issues"
+        description: "sprint in openSprints() OR status in ('In Review', 'In Progress')"
+      - label: "No filter"
+        description: "Sync all issues matching project/label"
+      - label: "Enter JQL"
+        description: "Type a custom JQL expression"
+    multiSelect: false
+
+  - question: "JIRA username/email? (default: {git_email from Step 2})"
+    header: "Username"
+    options:
+      - label: "{git_email}"
+        description: "Use email from git config (Recommended)"
+      - label: "Enter email"
+        description: "Type a different JIRA email/username"
+    multiSelect: false
+```
+
+**Interpreting responses:**
+
+- If user selects a predefined option (like "https://badal.atlassian.net"), use that value
+- If user selects "Enter ..." and types text, use their typed value
+- If user selects "No filter" for label, leave it empty
+- If user selects "Active issues" for JQL, use: `sprint in openSprints() OR status in ("In Review", "In Progress")`
+- If user selects "No filter" for JQL, leave it empty
 
 ### Step 4: Initialize beads
 

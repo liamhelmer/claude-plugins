@@ -25,11 +25,13 @@ The command will:
    - Default JIRA URL: `https://badal.atlassian.net`
 
 3. **Collect Configuration** (if prerequisites met)
-   - JIRA URL: Default to https://badal.atlassian.net (allow override)
+   - Collect ALL values in a SINGLE AskUserQuestion call with multiple questions
+   - Each question allows direct text input (user can type custom values or select defaults)
+   - JIRA URL: Default to https://badal.atlassian.net
    - Project key (e.g., PGF)
    - Optional label filter (e.g., DevEx)
-   - Optional JQL filter: Default to `sprint in openSprints() OR status in ("In Review", "In Progress")`
-   - JIRA username: Default to git email (allow override)
+   - JQL filter: Default to `sprint in openSprints() OR status in ("In Review", "In Progress")`
+   - JIRA username: Default to git email
 
 4. **Setup beads**
    - Initialize beads if `.beads/` directory doesn't exist
