@@ -1,0 +1,11 @@
+{
+    "session_id": "session-1769143890",
+    "feature_branch": "fix/jira-plugin-sql-string-setup",
+    "base_branch": "main",
+    "prompt": "The JIRA plugin isn't pushing the SQL string that the local beads instance is using during setup. Please fix it so that it uses it by default, but gives the user the option to change it.\n",
+    "state": "STARTED",
+    "started_at": "2026-01-23T04:51:30Z",
+    "agents": [],
+    "merged_count": 0,
+    "conflict_count": 0
+}

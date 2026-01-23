@@ -1,0 +1,1 @@
+/Users/liam.helmer/repos/liamhelmer/enterpise-agent-flows/plugins/jira/scripts/setup-jira.sh

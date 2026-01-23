@@ -14,6 +14,7 @@ NC='\033[0m' # No Color
 # Defaults
 DEFAULT_JIRA_URL="https://badal.atlassian.net"
 DEFAULT_GIT_EMAIL=$(git config --global user.email 2>/dev/null || echo "")
+DEFAULT_JQL='sprint in openSprints() OR status in ("In Review", "In Progress")'
 
 # Output functions
 info() {
@@ -120,6 +121,7 @@ configure_jira() {
 	local project="$2"
 	local label="$3"
 	local username="$4"
+	local jql="$5"
 
 	info "Configuring JIRA integration..."
 	echo ""
@@ -137,6 +139,11 @@ configure_jira() {
 
 	bd config set jira.username "$username"
 	echo "  jira.username = $username"
+
+	if [[ -n "$jql" ]]; then
+		bd config set jira.jql "$jql"
+		echo "  jira.jql = $jql"
+	fi
 
 	echo ""
 }
@@ -158,6 +165,7 @@ show_summary() {
 	local project="$2"
 	local label="$3"
 	local username="$4"
+	local jql="$5"
 
 	echo "=== Setup Complete ==="
 	echo ""
@@ -170,6 +178,9 @@ show_summary() {
 		echo "  Label:    $label"
 	fi
 	echo "  Username: $username"
+	if [[ -n "$jql" ]]; then
+		echo "  JQL:      $jql"
+	fi
 	echo ""
 	echo "Useful commands:"
 	echo "  bd jira sync --pull   # Pull issues from JIRA"
@@ -209,23 +220,28 @@ main() {
 	else
 		echo "  Username: (not found in git config)"
 	fi
+	echo "  JQL:      $DEFAULT_JQL"
 	echo ""
 
 	# If running non-interactively, require at least project key
-	# URL and username can use defaults
+	# URL, username, and JQL can use defaults
 	if [[ $# -lt 1 ]]; then
-		echo "Usage: $0 <project_key> [jira_url] [username] [label]"
+		echo "Usage: $0 <project_key> [jira_url] [username] [label] [jql]"
 		echo ""
 		echo "Arguments:"
 		echo "  project_key  - JIRA project key (required, e.g., PROJ)"
 		echo "  jira_url     - JIRA URL (default: $DEFAULT_JIRA_URL)"
 		echo "  username     - JIRA email (default: $DEFAULT_GIT_EMAIL)"
 		echo "  label        - Optional label filter"
+		echo "  jql          - JQL filter (default: $DEFAULT_JQL)"
+		echo "                 Use \"none\" to disable JQL filtering"
 		echo ""
 		echo "Examples:"
-		echo "  $0 PGF                                    # Use all defaults"
+		echo "  $0 PGF                                    # Use all defaults (including JQL)"
 		echo "  $0 PGF https://other.atlassian.net        # Custom URL"
 		echo "  $0 PGF \"\" other@email.com DevEx          # Custom username and label"
+		echo "  $0 PGF \"\" \"\" \"\" none                     # Disable JQL filter"
+		echo "  $0 PGF \"\" \"\" \"\" 'project = PGF'          # Custom JQL"
 		exit 1
 	fi
 
@@ -233,6 +249,12 @@ main() {
 	local jira_url="${2:-$DEFAULT_JIRA_URL}"
 	local username="${3:-$DEFAULT_GIT_EMAIL}"
 	local label="${4:-}"
+	local jql="${5:-$DEFAULT_JQL}"
+
+	# Handle "none" to disable JQL
+	if [[ "$jql" == "none" || "$jql" == "NONE" ]]; then
+		jql=""
+	fi
 
 	# Validate username is set
 	if [[ -z "$username" ]]; then
@@ -248,13 +270,13 @@ main() {
 	run_doctor
 
 	# Configure JIRA
-	configure_jira "$jira_url" "$project_key" "$label" "$username"
+	configure_jira "$jira_url" "$project_key" "$label" "$username" "$jql"
 
 	# Initial sync
 	initial_sync
 
 	# Show summary
-	show_summary "$jira_url" "$project_key" "$label" "$username"
+	show_summary "$jira_url" "$project_key" "$label" "$username" "$jql"
 }
 
 # Run main
