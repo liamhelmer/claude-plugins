@@ -12,6 +12,10 @@
     {
       "prompt": "The jira plugin does a beads init before the jira setup. This is wrong, and always introduces a conflict. check the beads docs for how to initialize when using jira",
       "timestamp": "2026-01-23 05:52:26 UTC"
+    },
+    {
+      "prompt": "<task-notification>\n<task-id>ba873b5</task-id>\n<output-file>/private/tmp/claude/-Users-liam-helmer-repos-liamhelmer-enterpise-agent-flows/tasks/ba873b5.output</output-file>\n<status>failed</status>\n<summary>Background command \"Test contributor mode init\" failed with exit code 137</summary>\n</task-notification>\nRead the output file to retrieve the result: /private/tmp/claude/-Users-liam-helmer-repos-liamhelmer-enterpise-agent-flows/tasks/ba873b5.output",
+      "timestamp": "2026-01-23 06:01:39 UTC"
     }
   ]
 }
