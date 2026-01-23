@@ -11,7 +11,7 @@
     {
       "name": "agent-fork-join",
       "description": "Multi-agent git workflow orchestrator with isolated worktrees, FIFO merge queue, and automated PR lifecycle management.",
-      "version": "0.2.0",
+      "version": "0.4.0",
       "author": {
         "name": "liamhelmer",
         "email": "liamhelmer@example.com"
@@ -22,7 +22,7 @@
     {
       "name": "jira",
       "description": "Complete JIRA integration for development workflows with ticket tracking, smart commits, PR automation, and bidirectional sync via beads.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "author": {
         "name": "liamhelmer",
         "email": "liamhelmer@example.com"
