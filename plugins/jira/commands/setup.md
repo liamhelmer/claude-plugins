@@ -204,15 +204,9 @@ if [[ ! -d ".beads" ]]; then
 fi
 ```
 
-### Step 6: Run beads Doctor
+**IMPORTANT**: Do NOT run `bd doctor --fix` before configuring JIRA. This can cause sync divergence issues. Configure JIRA first, then sync.
 
-Fix any beads configuration issues:
-
-```bash
-bd doctor --fix
-```
-
-### Step 7: Configure JIRA Integration
+### Step 6: Configure JIRA Integration
 
 Set the JIRA configuration values:
 
@@ -237,7 +231,7 @@ fi
 bd config set jira.username "$USERNAME"
 ```
 
-### Step 8: Verify Configuration
+### Step 7: Verify Configuration
 
 Show the configured values:
 
@@ -245,7 +239,7 @@ Show the configured values:
 bd config list | grep jira
 ```
 
-### Step 9: Initial Sync
+### Step 8: Initial Sync
 
 Perform the first sync from JIRA:
 
@@ -253,7 +247,7 @@ Perform the first sync from JIRA:
 bd jira sync --pull
 ```
 
-### Step 10: Show Summary
+### Step 9: Show Summary
 
 Display a summary of what was configured and useful next commands:
 
